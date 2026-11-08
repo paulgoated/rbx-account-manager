@@ -1,5 +1,5 @@
 // =====================================================================
-//  RBX Account Manager v2.1 (Rust + egui)
+//  RBX Account Manager (Rust + egui), version in Cargo.toml
 //  - Account data is encrypted with Windows DPAPI: only this Windows user
 //    on this PC can decrypt it.
 //  - Talks ONLY to roblox.com (+ rbxcdn.com for avatar/game images).
@@ -1731,7 +1731,7 @@ impl App {
                         ui.label(RichText::new("Ready").font(rg(12.5)).color(MUTED()));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(RichText::new("v2.1").font(rg(12.0)).color(FAINT()));
+                        ui.label(RichText::new(concat!("v", env!("CARGO_PKG_VERSION"))).font(rg(12.0)).color(FAINT()));
                         ui.add_space(8.0);
                         if self.running > 0 {
                             if ui

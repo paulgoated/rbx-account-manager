@@ -57,7 +57,7 @@ pub(crate) fn agent() -> Result<ureq::Agent, String> {
         .tls_connector(Arc::new(tls))
         .redirects(0)
         .timeout(Duration::from_secs(20))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) RBXAccountManager/2.1")
+        .user_agent(concat!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) RBXAccountManager/", env!("CARGO_PKG_VERSION")))
         .build())
 }
 
