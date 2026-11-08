@@ -3,6 +3,10 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Built-in Discord application used for Rich Presence when the user hasn't set their own.
+/// Application IDs are public identifiers (not secrets), so shipping one is fine.
+pub const DEFAULT_APP_ID: &str = "1568963569779875942";
+
 pub fn valid_webhook(url: &str) -> bool {
     let u = url.trim();
     ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/", "https://canary.discord.com/api/webhooks/", "https://ptb.discord.com/api/webhooks/"]

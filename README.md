@@ -38,7 +38,7 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/rafael
 - **Auto-rejoin (beta)**: watches each client's Roblox log for disconnects, kicks and shutdowns and rejoins automatically. Stops after 3 rejoins in 10 minutes
 - **FPS limit**: sets Roblox's own Maximum Frame Rate (`FramerateCap` in `GlobalBasicSettings_*.xml`) and the `DFIntTaskSchedulerTargetFps` fast flag before every launch and rejoin. Other settings are kept
 - **Close to tray**: the X button hides the app; Anti-AFK and auto-rejoin keep running. The tray menu has Show, Anti-AFK, Stop all Roblox and Quit
-- **Discord**: optional webhook alerts (disconnects, rejoins, finished batches) and Rich Presence using your own Discord Application ID. Upload `assets/logo-1024.png` as an Art Asset named `logo` to show the logo in your status
+- **Discord**: Rich Presence works out of the box (on by default, turn it off in Settings) and shows the app plus how many clients are running on your profile. Optional webhook alerts for disconnects, rejoins and finished batches. Advanced: use your own Discord Application ID to show a different name
 
 **Lightweight**
 - Single ~7 MB `.exe`, no installer
@@ -95,7 +95,7 @@ Run the unit tests with `cargo test --release` (they never touch your real Roblo
 
 ## Privacy
 
-Besides `roblox.com`/`rbxcdn.com`, the app only contacts Discord, and only if you turn on Discord alerts (your own webhook) or Rich Presence (the local Discord app on your PC).
+Besides `roblox.com`/`rbxcdn.com`, the app only talks to Discord: Rich Presence goes to the Discord app running on your own PC (it shows the number of accounts and running clients, never names or cookies), and webhook alerts go to your own webhook if you turn them on.
 
 ## Disclaimer
 

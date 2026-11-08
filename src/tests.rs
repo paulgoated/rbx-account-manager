@@ -56,6 +56,17 @@ fn disconnect_lines_are_detected() {
 }
 
 #[test]
+fn rich_presence_defaults() {
+    // new users (no settings file) and old settings files without the field get Rich Presence on
+    let s: crate::store::Settings = serde_json::from_str("{}").unwrap();
+    assert!(s.discord_rpc);
+    // users who turned it off keep it off
+    let s: crate::store::Settings = serde_json::from_str(r#"{"DiscordRpc": false}"#).unwrap();
+    assert!(!s.discord_rpc);
+    assert!(crate::discord::DEFAULT_APP_ID.bytes().all(|b| b.is_ascii_digit()));
+}
+
+#[test]
 fn webhook_urls_are_validated() {
     assert!(discord::valid_webhook("https://discord.com/api/webhooks/123/abc"));
     assert!(discord::valid_webhook("https://discordapp.com/api/webhooks/123/abc"));
@@ -80,4 +91,24 @@ fn listing_roblox_windows_does_not_crash() {
     let pids = crate::win::roblox_pids();
     assert!(wins.len() <= pids.len());
     println!("roblox processes: {}, windows: {}", pids.len(), wins.len());
+}
+
+#[test]
+#[ignore] // needs the Discord desktop app running: cargo test -- --ignored rpc_
+fn rpc_connects_to_local_discord() {
+    let mut rpc = crate::discord::Rpc::new();
+    let r = rpc.set("100000000000000001", "test", "test");
+    println!("RPC result with a fake ID: {r:?}");
+    // a fake ID must be rejected by Discord (proves the IPC pipe works), never "Discord isn't running"
+    assert_ne!(r, Err("Discord isn't running.".to_string()));
+}
+
+#[test]
+#[ignore] // RBX_RPC_TEST_ID=<your app id> cargo test -- --ignored rpc_real
+fn rpc_real_application_id() {
+    let Ok(id) = std::env::var("RBX_RPC_TEST_ID") else { return };
+    let mut rpc = crate::discord::Rpc::new();
+    let r = rpc.set(&id, "Managing accounts", "Connection test");
+    println!("RPC result with the real ID: {r:?}");
+    assert!(r.is_ok());
 }

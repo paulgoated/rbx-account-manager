@@ -78,8 +78,13 @@ pub struct Settings {
     pub close_to_tray: bool,
     pub discord_alerts: bool,
     pub discord_webhook: String,
+    /// Rich Presence (on by default, like most launchers; uses the built-in app ID).
+    #[serde(default = "yes")]
     pub discord_rpc: bool,
+    /// Optional custom Discord Application ID (empty = built-in one).
     pub discord_app_id: String,
+    /// UI theme: "graphite" (dark, default), "terrava" (light) or "neon".
+    pub theme: String,
 }
 
 pub fn data_dir() -> PathBuf {
@@ -178,12 +183,17 @@ pub fn import_ram(path: &str) -> Result<Vec<Account>, String> {
     Ok(out)
 }
 
+fn yes() -> bool {
+    true
+}
+
 pub fn load_settings() -> Settings {
     let file = data_dir().join("settings.json");
     std::fs::read_to_string(file)
         .ok()
         .and_then(|t| serde_json::from_str(strip_bom(&t)).ok())
-        .unwrap_or_default()
+        // first run: same defaults as a settings file without these fields
+        .unwrap_or_else(|| Settings { discord_rpc: true, ..Default::default() })
 }
 
 pub fn save_settings(s: &Settings) {

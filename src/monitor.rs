@@ -71,6 +71,8 @@ pub struct Shared {
     pub clients: Vec<Client>,
     rejoins: HashMap<String, Vec<Instant>>,
     pub last_nudge: Option<String>,
+    /// Rich Presence status for the Settings tab ("OK: ..." when connected).
+    pub rpc_status: String,
 }
 
 pub type SharedRef = Arc<Mutex<Shared>>;
@@ -339,21 +341,41 @@ pub fn start(shared: SharedRef, events: Sender<Event>, tray_rx: Receiver<TrayCmd
 pub fn start_rpc(shared: SharedRef) {
     std::thread::spawn(move || {
         let mut rpc = discord::Rpc::new();
-        std::thread::sleep(Duration::from_secs(3));
+        std::thread::sleep(Duration::from_secs(2));
+        // update right away when the settings change, otherwise every 15 s
+        let mut last_key = String::new();
+        let mut next = Instant::now();
         loop {
             let (cfg, tracked) = {
                 let sh = shared.lock().unwrap();
                 (sh.cfg.clone(), sh.clients.len())
             };
-            if cfg.rpc && !cfg.rpc_app_id.trim().is_empty() {
-                let running = win::roblox_pids().len().max(tracked);
-                let details = format!("Managing {} account{}", cfg.accounts, if cfg.accounts == 1 { "" } else { "s" });
-                let state = if running == 0 { "No clients running".to_string() } else { format!("{running} Roblox client{} running", if running == 1 { "" } else { "s" }) };
-                let _ = rpc.set(&cfg.rpc_app_id, &details, &state);
-            } else {
-                rpc.clear();
+            let id = cfg.rpc_app_id.trim().to_string();
+            let key = format!("{}|{}|{}", cfg.rpc, id, cfg.accounts);
+            if key != last_key || Instant::now() >= next {
+                last_key = key;
+                next = Instant::now() + Duration::from_secs(15);
+                let status = if !cfg.rpc {
+                    rpc.clear();
+                    String::new()
+                } else if id.is_empty() {
+                    rpc.clear();
+                    "Paste your Discord Application ID above.".to_string()
+                } else if !id.bytes().all(|b| b.is_ascii_digit()) || !(17..=20).contains(&id.len()) {
+                    rpc.clear();
+                    "That isn't an Application ID (it's a 17–20 digit number).".to_string()
+                } else {
+                    let running = win::roblox_pids().len().max(tracked);
+                    let details = format!("Managing {} account{}", cfg.accounts, if cfg.accounts == 1 { "" } else { "s" });
+                    let state = if running == 0 { "No clients running".to_string() } else { format!("{running} Roblox client{} running", if running == 1 { "" } else { "s" }) };
+                    match rpc.set(&id, &details, &state) {
+                        Ok(()) => "OK: Connected. Showing on your Discord profile.".to_string(),
+                        Err(e) => e,
+                    }
+                };
+                shared.lock().unwrap().rpc_status = status;
             }
-            std::thread::sleep(Duration::from_secs(15));
+            std::thread::sleep(Duration::from_secs(2));
         }
     });
 }

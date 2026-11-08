@@ -29,32 +29,148 @@ use std::sync::Arc;
 use std::time::Duration;
 use store::{Account, Settings};
 
-// ------------------------------------------------------------------ palette (neutral graphite)
+// ------------------------------------------------------------------ themes
+/// 0 = Graphite (dark, default), 1 = Terrava (light: aubergine ink, lilac, cobalt blue),
+/// 2 = Neon (isready.ai "dark terminal": near-black with a lime accent, mono labels).
+static THEME: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn is_light() -> bool {
+    THEME.load(std::sync::atomic::Ordering::Relaxed) == 1
+}
+
+fn set_theme(name: &str) {
+    let v = match name.to_ascii_lowercase().as_str() {
+        "terrava" => 1,
+        "neon" => 2,
+        _ => 0,
+    };
+    THEME.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn is_neon() -> bool {
+    THEME.load(std::sync::atomic::Ordering::Relaxed) == 2
+}
+
+/// Pick the colour for the active theme (Neon uses the dark value).
+#[allow(dead_code)]
+fn pick(dark: u32, light: u32) -> Color32 {
+    hex(if is_light() { light } else { dark })
+}
+
+/// Pick the colour for the active theme: Graphite, Terrava, Neon.
+fn pick3(graphite: u32, terrava: u32, neon: u32) -> Color32 {
+    hex(match THEME.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => terrava,
+        2 => neon,
+        _ => graphite,
+    })
+}
+
+/// Header band: Terrava uses a bright cobalt panel like its hero sections.
+#[allow(non_snake_case)]
+fn HEADER_BG() -> Color32 {
+    pick3(0x0F1012, 0x3A7FE3, 0x0A0A08)
+}
+#[allow(non_snake_case)]
+fn HEADER_TEXT() -> Color32 {
+    pick3(0xE8E6E1, 0xFFFFFF, 0xE8E8E5)
+}
+#[allow(non_snake_case)]
+fn HEADER_SUB() -> Color32 {
+    pick3(0x65625C, 0xD6E6FF, 0x6B6B64)
+}
+// ------------------------------------------------------------------ palette (neutral graphite / Terrava)
 const fn hex(h: u32) -> Color32 {
     Color32::from_rgb((h >> 16) as u8, (h >> 8) as u8, h as u8)
 }
-const BG: Color32 = hex(0x0F1012);
-const SURFACE: Color32 = hex(0x16171A);
-const CARD: Color32 = hex(0x1C1D21);
-const CARD_HOVER: Color32 = hex(0x232428);
-const FIELD: Color32 = hex(0x0B0C0E);
-const BORDER: Color32 = hex(0x26272C);
-const BORDER_HI: Color32 = hex(0x36373D);
-const TEXT: Color32 = hex(0xE8E6E1);
-const MUTED: Color32 = hex(0x9B9890);
-const FAINT: Color32 = hex(0x65625C);
-const PRIMARY: Color32 = hex(0xE8E6E1);
-const PRIMARY_HI: Color32 = hex(0xFFFFFF);
-const ON_PRIMARY: Color32 = hex(0x111111);
-const SELECT_BG: Color32 = hex(0x25262B);
-const SELECT_BORDER: Color32 = hex(0xC9C6BE);
-const GREEN: Color32 = hex(0x5DB37E);
-const BLUE: Color32 = hex(0x6FA3D8);
-const RED: Color32 = hex(0xE0625A);
-const RED_BG: Color32 = hex(0x2A1716);
-const RED_BG_HI: Color32 = hex(0x3A1E1C);
-const AMBER: Color32 = hex(0xD7A54A);
-const AMBER_BG: Color32 = hex(0x2A2214);
+#[allow(non_snake_case)]
+fn BG() -> Color32 {
+    pick3(0x0F1012, 0xF7F9FF, 0x0A0A08)
+}
+#[allow(non_snake_case)]
+fn SURFACE() -> Color32 {
+    pick3(0x16171A, 0xFFFFFF, 0x11110E)
+}
+#[allow(non_snake_case)]
+fn CARD() -> Color32 {
+    pick3(0x1C1D21, 0xF1F3FA, 0x1A1A16)
+}
+#[allow(non_snake_case)]
+fn CARD_HOVER() -> Color32 {
+    pick3(0x232428, 0xE8ECF8, 0x23231F)
+}
+#[allow(non_snake_case)]
+fn FIELD() -> Color32 {
+    pick3(0x0B0C0E, 0xFFFFFF, 0x0A0A08)
+}
+#[allow(non_snake_case)]
+fn BORDER() -> Color32 {
+    pick3(0x26272C, 0xE5E7EB, 0x2E2E2B)
+}
+#[allow(non_snake_case)]
+fn BORDER_HI() -> Color32 {
+    pick3(0x36373D, 0xCDD2DE, 0x3F3F3A)
+}
+#[allow(non_snake_case)]
+fn TEXT() -> Color32 {
+    pick3(0xE8E6E1, 0x23143F, 0xE8E8E5)
+}
+#[allow(non_snake_case)]
+fn MUTED() -> Color32 {
+    pick3(0x9B9890, 0x5E5675, 0xA3A39B)
+}
+#[allow(non_snake_case)]
+fn FAINT() -> Color32 {
+    pick3(0x65625C, 0x9891AB, 0x6B6B64)
+}
+#[allow(non_snake_case)]
+fn PRIMARY() -> Color32 {
+    pick3(0xE8E6E1, 0xD1C1FF, 0x9FE737)
+}
+#[allow(non_snake_case)]
+fn PRIMARY_HI() -> Color32 {
+    pick3(0xFFFFFF, 0x78BFF7, 0xB6F55E)
+}
+#[allow(non_snake_case)]
+fn ON_PRIMARY() -> Color32 {
+    pick3(0x111111, 0x23143F, 0x0A0A08)
+}
+#[allow(non_snake_case)]
+fn SELECT_BG() -> Color32 {
+    pick3(0x25262B, 0xF0EBFF, 0x161B0D)
+}
+#[allow(non_snake_case)]
+fn SELECT_BORDER() -> Color32 {
+    pick3(0xC9C6BE, 0x3A7FE3, 0x9FE737)
+}
+#[allow(non_snake_case)]
+fn GREEN() -> Color32 {
+    pick3(0x5DB37E, 0x1F9D82, 0x9FE737)
+}
+#[allow(non_snake_case)]
+fn BLUE() -> Color32 {
+    pick3(0x6FA3D8, 0x3A7FE3, 0x3AA6D8)
+}
+#[allow(non_snake_case)]
+fn RED() -> Color32 {
+    pick3(0xE0625A, 0xE2501F, 0xD94B4B)
+}
+#[allow(non_snake_case)]
+fn RED_BG() -> Color32 {
+    pick3(0x2A1716, 0xFFEDE6, 0x2A1414)
+}
+#[allow(non_snake_case)]
+fn RED_BG_HI() -> Color32 {
+    pick3(0x3A1E1C, 0xFFDCCF, 0x3A1B1B)
+}
+#[allow(non_snake_case)]
+fn AMBER() -> Color32 {
+    pick3(0xD7A54A, 0xB07D00, 0xE0B341)
+}
+#[allow(non_snake_case)]
+fn AMBER_BG() -> Color32 {
+    pick3(0x2A2214, 0xFFF1C2, 0x2A2412)
+}
 
 fn sb(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("semibold".into()))
@@ -229,20 +345,20 @@ fn setup_fonts(ctx: &egui::Context) {
 }
 
 fn setup_style(ctx: &egui::Context) {
-    ctx.set_theme(egui::ThemePreference::Dark);
+    ctx.set_theme(if is_light() { egui::ThemePreference::Light } else { egui::ThemePreference::Dark });
     let mut style = (*ctx.style()).clone();
-    style.visuals = egui::Visuals::dark();
+    style.visuals = if is_light() { egui::Visuals::light() } else { egui::Visuals::dark() };
     let v = &mut style.visuals;
-    v.panel_fill = BG;
-    v.window_fill = SURFACE;
-    v.extreme_bg_color = FIELD;
-    v.faint_bg_color = CARD;
-    v.window_stroke = line(1.0, BORDER);
+    v.panel_fill = BG();
+    v.window_fill = SURFACE();
+    v.extreme_bg_color = FIELD();
+    v.faint_bg_color = CARD();
+    v.window_stroke = line(1.0, BORDER());
     v.window_corner_radius = CornerRadius::same(14);
     v.menu_corner_radius = CornerRadius::same(10);
-    v.selection.bg_fill = hex(0x45464D);
-    v.selection.stroke = line(1.0, SELECT_BORDER);
-    v.hyperlink_color = TEXT;
+    v.selection.bg_fill = pick3(0x45464D, 0xD1C1FF, 0x3D5A16);
+    v.selection.stroke = line(1.0, SELECT_BORDER());
+    v.hyperlink_color = TEXT();
     for w in [
         &mut v.widgets.noninteractive,
         &mut v.widgets.inactive,
@@ -252,18 +368,18 @@ fn setup_style(ctx: &egui::Context) {
     ] {
         w.corner_radius = CornerRadius::same(8);
         w.expansion = 0.0;
-        w.fg_stroke = line(1.0, TEXT);
+        w.fg_stroke = line(1.0, TEXT());
     }
-    v.widgets.noninteractive.bg_stroke = line(1.0, BORDER);
-    v.widgets.inactive.bg_fill = CARD;
-    v.widgets.inactive.weak_bg_fill = CARD;
-    v.widgets.inactive.bg_stroke = line(1.0, BORDER);
-    v.widgets.hovered.bg_fill = CARD_HOVER;
-    v.widgets.hovered.weak_bg_fill = CARD_HOVER;
-    v.widgets.hovered.bg_stroke = line(1.0, BORDER_HI);
-    v.widgets.active.bg_fill = CARD_HOVER;
-    v.widgets.active.weak_bg_fill = CARD_HOVER;
-    v.widgets.active.bg_stroke = line(1.0, SELECT_BORDER);
+    v.widgets.noninteractive.bg_stroke = line(1.0, BORDER());
+    v.widgets.inactive.bg_fill = CARD();
+    v.widgets.inactive.weak_bg_fill = CARD();
+    v.widgets.inactive.bg_stroke = line(1.0, BORDER());
+    v.widgets.hovered.bg_fill = CARD_HOVER();
+    v.widgets.hovered.weak_bg_fill = CARD_HOVER();
+    v.widgets.hovered.bg_stroke = line(1.0, BORDER_HI());
+    v.widgets.active.bg_fill = CARD_HOVER();
+    v.widgets.active.weak_bg_fill = CARD_HOVER();
+    v.widgets.active.bg_stroke = line(1.0, SELECT_BORDER());
     style.spacing.item_spacing = vec2(8.0, 8.0);
     style.spacing.button_padding = vec2(12.0, 6.0);
     style.spacing.interact_size.y = 30.0;
@@ -305,7 +421,7 @@ fn paint_text(ui: &egui::Ui, p: &Painter, anchor: egui::Pos2, align: Align, text
 }
 
 fn text_width(ui: &egui::Ui, text: &str, font: FontId) -> f32 {
-    ui.fonts(|f| f.layout_no_wrap(text.to_owned(), font, TEXT).size().x)
+    ui.fonts(|f| f.layout_no_wrap(text.to_owned(), font, TEXT()).size().x)
 }
 
 #[derive(Clone, Copy)]
@@ -354,7 +470,7 @@ fn button_ex(ui: &mut egui::Ui, label: &str, icon: Option<Icon>, size: Vec2, fil
     let sense = if enabled { Sense::click() } else { Sense::hover() };
     let (rect, resp) = ui.allocate_exact_size(size, sense);
     let (fill, fg) = if !enabled {
-        (CARD, FAINT)
+        (CARD(), FAINT())
     } else if resp.hovered() && !resp.is_pointer_button_down_on() {
         (hover, fg)
     } else {
@@ -385,36 +501,36 @@ fn button(ui: &mut egui::Ui, label: &str, size: Vec2, fill: Color32, hover: Colo
 }
 
 fn icon_button(ui: &mut egui::Ui, icon: Icon, size: Vec2) -> egui::Response {
-    button_ex(ui, "", Some(icon), size, CARD, CARD_HOVER, TEXT, rg(13.5), true)
+    button_ex(ui, "", Some(icon), size, CARD(), CARD_HOVER(), TEXT(), rg(13.5), true)
 }
 
 fn primary(ui: &mut egui::Ui, label: &str, size: Vec2, enabled: bool) -> egui::Response {
-    button(ui, label, size, PRIMARY, PRIMARY_HI, ON_PRIMARY, sb(14.0), enabled)
+    button(ui, label, size, PRIMARY(), PRIMARY_HI(), ON_PRIMARY(), sb(14.0), enabled)
 }
 
 fn ghost(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response {
-    button(ui, label, size, CARD, CARD_HOVER, TEXT, rg(13.5), true)
+    button(ui, label, size, CARD(), CARD_HOVER(), TEXT(), rg(13.5), true)
 }
 
 fn danger(ui: &mut egui::Ui, label: &str, size: Vec2) -> egui::Response {
-    button(ui, label, size, RED_BG, RED_BG_HI, RED, rg(13.5), true)
+    button(ui, label, size, RED_BG(), RED_BG_HI(), RED(), rg(13.5), true)
 }
 
 fn menu_item(ui: &mut egui::Ui, label: &str, sub: &str) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(270.0, 46.0), Sense::click());
     if resp.hovered() {
-        ui.painter().rect_filled(rect, CornerRadius::same(8), CARD_HOVER);
+        ui.painter().rect_filled(rect, CornerRadius::same(8), CARD_HOVER());
     }
     let p = ui.painter();
-    paint_text(ui, p, rect.left_top() + vec2(12.0, 16.0), Align::Min, label, sb(13.5), TEXT, 250.0);
-    paint_text(ui, p, rect.left_top() + vec2(12.0, 32.0), Align::Min, sub, rg(12.0), MUTED, 250.0);
+    paint_text(ui, p, rect.left_top() + vec2(12.0, 16.0), Align::Min, label, sb(13.5), TEXT(), 250.0);
+    paint_text(ui, p, rect.left_top() + vec2(12.0, 32.0), Align::Min, sub, rg(12.0), MUTED(), 250.0);
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 fn field(ui: &mut egui::Ui, value: &mut String, hint: &str, password: bool) -> egui::Response {
     ui.add(
         egui::TextEdit::singleline(value)
-            .hint_text(RichText::new(hint).color(FAINT))
+            .hint_text(RichText::new(hint).color(FAINT()))
             .password(password)
             .desired_width(f32::INFINITY)
             .margin(vec2(10.0, 8.0))
@@ -422,29 +538,34 @@ fn field(ui: &mut egui::Ui, value: &mut String, hint: &str, password: bool) -> e
     )
 }
 
+/// Small uppercase labels: semibold, or terminal-style mono in the Neon theme.
+fn label_font(size: f32) -> FontId {
+    if is_neon() { FontId::monospace(size - 0.5) } else { sb(size) }
+}
+
 fn caption(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new(text).font(sb(11.5)).color(MUTED));
+    ui.label(RichText::new(text).font(label_font(11.5)).color(MUTED()));
 }
 
 fn toggle(ui: &mut egui::Ui, on: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(40.0, 22.0), Sense::click());
     let t = ui.ctx().animate_bool(resp.id, on);
     let p = ui.painter();
-    p.rect_filled(rect, CornerRadius::same(11), if on { PRIMARY } else { BORDER_HI });
+    p.rect_filled(rect, CornerRadius::same(11), if on { PRIMARY() } else { BORDER_HI() });
     let x = egui::lerp((rect.left() + 11.0)..=(rect.right() - 11.0), t);
-    p.circle_filled(pos2(x, rect.center().y), 8.0, if on { ON_PRIMARY } else { MUTED });
+    p.circle_filled(pos2(x, rect.center().y), 8.0, if on { ON_PRIMARY() } else { MUTED() });
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 fn chip(ui: &mut egui::Ui, label: &str, active: bool) -> egui::Response {
-    let w = ui.fonts(|f| f.layout_no_wrap(label.to_owned(), rg(12.5), TEXT).size().x) + 22.0;
+    let w = ui.fonts(|f| f.layout_no_wrap(label.to_owned(), rg(12.5), TEXT()).size().x) + 22.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(w, 26.0), Sense::click());
     let (fill, fg, stroke) = if active {
-        (PRIMARY, ON_PRIMARY, Stroke::NONE)
+        (PRIMARY(), ON_PRIMARY(), Stroke::NONE)
     } else if resp.hovered() {
-        (CARD_HOVER, TEXT, line(1.0, BORDER_HI))
+        (CARD_HOVER(), TEXT(), line(1.0, BORDER_HI()))
     } else {
-        (Color32::TRANSPARENT, MUTED, line(1.0, BORDER))
+        (Color32::TRANSPARENT, MUTED(), line(1.0, BORDER()))
     };
     ui.painter().rect(rect, CornerRadius::same(13), fill, stroke, StrokeKind::Inside);
     paint_text(ui, ui.painter(), rect.center(), Align::Center, label, rg(12.5), fg, f32::INFINITY);
@@ -452,7 +573,7 @@ fn chip(ui: &mut egui::Ui, label: &str, active: bool) -> egui::Response {
 }
 
 fn panel_frame() -> Frame {
-    Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).stroke(line(1.0, BORDER))
+    Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(12)).inner_margin(Margin::same(16)).stroke(line(1.0, BORDER()))
 }
 
 fn elide(ui: &egui::Ui, text: &str, font: FontId, color: Color32, max_w: f32) -> Arc<egui::Galley> {
@@ -537,18 +658,18 @@ impl Cols {
 
 fn paint_checkbox(p: &Painter, r: Rect, on: bool, partial: bool, hot: bool) {
     if on || partial {
-        p.rect_filled(r, CornerRadius::same(4), PRIMARY);
+        p.rect_filled(r, CornerRadius::same(4), PRIMARY());
         if on {
             let a = pos2(r.left() + 3.5, r.center().y + 0.5);
             let b = pos2(r.left() + 6.8, r.bottom() - 4.0);
             let c = pos2(r.right() - 3.5, r.top() + 4.0);
-            p.line_segment([a, b], line(2.0, ON_PRIMARY));
-            p.line_segment([b, c], line(2.0, ON_PRIMARY));
+            p.line_segment([a, b], line(2.0, ON_PRIMARY()));
+            p.line_segment([b, c], line(2.0, ON_PRIMARY()));
         } else {
-            p.line_segment([pos2(r.left() + 4.0, r.center().y), pos2(r.right() - 4.0, r.center().y)], line(2.0, ON_PRIMARY));
+            p.line_segment([pos2(r.left() + 4.0, r.center().y), pos2(r.right() - 4.0, r.center().y)], line(2.0, ON_PRIMARY()));
         }
     } else {
-        p.rect_stroke(r, CornerRadius::same(4), line(1.2, if hot { MUTED } else { BORDER_HI }), StrokeKind::Inside);
+        p.rect_stroke(r, CornerRadius::same(4), line(1.2, if hot { MUTED() } else { BORDER_HI() }), StrokeKind::Inside);
     }
 }
 
@@ -556,7 +677,7 @@ fn paint_checkbox(p: &Painter, r: Rect, on: bool, partial: bool, hot: bool) {
 fn segmented(ui: &mut egui::Ui, id: egui::Id, options: &[&str], active: usize) -> Option<usize> {
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
-    ui.painter().rect(rect, CornerRadius::same(8), FIELD, line(1.0, BORDER), StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(8), FIELD(), line(1.0, BORDER()), StrokeKind::Inside);
     let tw = (w - 6.0) / options.len() as f32;
     let mut out = None;
     for (i, label) in options.iter().enumerate() {
@@ -564,9 +685,9 @@ fn segmented(ui: &mut egui::Ui, id: egui::Id, options: &[&str], active: usize) -
         let resp = ui.interact(r, id.with(i), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
         let on = i == active;
         if on {
-            ui.painter().rect_filled(r, CornerRadius::same(6), CARD_HOVER);
+            ui.painter().rect_filled(r, CornerRadius::same(6), CARD_HOVER());
         }
-        let col = if on { TEXT } else if resp.hovered() { TEXT } else { MUTED };
+        let col = if on { TEXT() } else if resp.hovered() { TEXT() } else { MUTED() };
         paint_text(ui, ui.painter(), r.center(), Align::Center, label, if on { sb(13.0) } else { rg(13.0) }, col, tw);
         if resp.clicked() && !on {
             out = Some(i);
@@ -583,15 +704,15 @@ fn paint_x(p: &Painter, c: egui::Pos2, h: f32, color: Color32) {
 
 fn divider(ui: &mut egui::Ui) {
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().rect_filled(r, CornerRadius::ZERO, BORDER);
+    ui.painter().rect_filled(r, CornerRadius::ZERO, BORDER());
 }
 
 /// Settings row: title + description on the left, control on the right, fixed height.
 fn setting_row(ui: &mut egui::Ui, title: &str, sub: &str, ctrl_w: f32, control: impl FnOnce(&mut egui::Ui)) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::hover());
     let p = ui.painter();
-    paint_text(ui, p, pos2(rect.left(), rect.center().y - 8.0), Align::Min, title, sb(13.5), TEXT, rect.width() - ctrl_w - 12.0);
-    paint_text(ui, p, pos2(rect.left(), rect.center().y + 9.0), Align::Min, sub, rg(12.0), MUTED, rect.width() - ctrl_w - 12.0);
+    paint_text(ui, p, pos2(rect.left(), rect.center().y - 8.0), Align::Min, title, sb(13.5), TEXT(), rect.width() - ctrl_w - 12.0);
+    paint_text(ui, p, pos2(rect.left(), rect.center().y + 9.0), Align::Min, sub, rg(12.0), MUTED(), rect.width() - ctrl_w - 12.0);
     let ctrl = Rect::from_min_max(pos2(rect.right() - ctrl_w, rect.top()), rect.max);
     ui.scope_builder(egui::UiBuilder::new().max_rect(ctrl).layout(Layout::right_to_left(Align::Center)), control);
 }
@@ -653,13 +774,17 @@ fn extract_cookie(line: &str) -> Option<String> {
 // ------------------------------------------------------------------ app
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, accounts: Vec<Account>, args: &[String]) -> Self {
+        set_theme(&store::load_settings().theme);
+        if let Some(i) = args.iter().position(|a| a == "--theme") {
+            set_theme(args.get(i + 1).map(|s| s.as_str()).unwrap_or(""));
+        }
         setup_fonts(&cc.egui_ctx);
         setup_style(&cc.egui_ctx);
         let mut hwnd = 0isize;
         if let Ok(h) = raw_window_handle::HasWindowHandle::window_handle(cc) {
             if let raw_window_handle::RawWindowHandle::Win32(w) = h.as_raw() {
                 hwnd = w.hwnd.get();
-                win::dark_title_bar(hwnd as *mut std::ffi::c_void);
+                win::set_title_bar_dark(hwnd as *mut std::ffi::c_void, !is_light());
             }
         }
         tray::MAIN_HWND.store(hwnd, std::sync::atomic::Ordering::Relaxed);
@@ -1536,9 +1661,9 @@ impl App {
     // -------------------------------------------------------------- ui: header & status
     fn header(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("header")
-            .exact_height(72.0)
+            .exact_height(76.0)
             .show_separator_line(false)
-            .frame(Frame::new().fill(BG).inner_margin(Margin { left: 24, right: 24, top: 14, bottom: 6 }))
+            .frame(Frame::new().fill(HEADER_BG()).inner_margin(Margin { left: 24, right: 24, top: 14, bottom: 14 }))
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
                     let (lr, _) = ui.allocate_exact_size(Vec2::splat(38.0), Sense::hover());
@@ -1546,12 +1671,12 @@ impl App {
                     ui.add_space(4.0);
                     ui.vertical(|ui| {
                         ui.add_space(1.0);
-                        ui.label(RichText::new("RBX Account Manager").font(sb(18.0)).color(TEXT));
+                        ui.label(RichText::new("RBX Account Manager").font(sb(18.0)).color(HEADER_TEXT()));
                         ui.add_space(-7.0);
-                        ui.label(RichText::new("Local, DPAPI-encrypted").font(rg(12.0)).color(FAINT));
+                        ui.label(RichText::new("Local, DPAPI-encrypted").font(rg(12.0)).color(HEADER_SUB()));
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let resp = button_ex(ui, "Add account", Some(Icon::Plus), vec2(150.0, 36.0), PRIMARY, PRIMARY_HI, ON_PRIMARY, sb(14.0), true);
+                        let resp = button_ex(ui, "Add account", Some(Icon::Plus), vec2(150.0, 36.0), PRIMARY(), PRIMARY_HI(), ON_PRIMARY(), sb(14.0), true);
                         let pid = ui.make_persistent_id("add_menu");
                         if resp.clicked() {
                             ui.memory_mut(|m| m.toggle_popup(pid));
@@ -1581,7 +1706,7 @@ impl App {
                             ui.add(
                                 egui::TextEdit::singleline(&mut self.search)
                                     .id(egui::Id::new("search"))
-                                    .hint_text(RichText::new("Search accounts, groups, notes   Ctrl+F").color(FAINT))
+                                    .hint_text(RichText::new("Search accounts, groups, notes   Ctrl+F").color(FAINT()))
                                     .desired_width(f32::INFINITY)
                                     .margin(vec2(10.0, 8.0))
                                     .font(rg(14.0)),
@@ -1596,29 +1721,29 @@ impl App {
         egui::TopBottomPanel::bottom("status")
             .exact_height(34.0)
             .show_separator_line(false)
-            .frame(Frame::new().fill(SURFACE).inner_margin(Margin::symmetric(24, 0)))
+            .frame(Frame::new().fill(SURFACE()).inner_margin(Margin::symmetric(24, 0)))
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
                     if let Some(b) = &self.busy {
-                        ui.add(egui::Spinner::new().size(13.0).color(TEXT));
-                        ui.label(RichText::new(b).font(rg(12.5)).color(TEXT));
+                        ui.add(egui::Spinner::new().size(13.0).color(TEXT()));
+                        ui.label(RichText::new(b).font(rg(12.5)).color(TEXT()));
                     } else {
-                        ui.label(RichText::new("Ready").font(rg(12.5)).color(MUTED));
+                        ui.label(RichText::new("Ready").font(rg(12.5)).color(MUTED()));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(RichText::new("v2.1").font(rg(12.0)).color(FAINT));
+                        ui.label(RichText::new("v2.1").font(rg(12.0)).color(FAINT()));
                         ui.add_space(8.0);
                         if self.running > 0 {
                             if ui
-                                .add(egui::Label::new(RichText::new("Stop all").font(sb(12.0)).color(RED)).sense(Sense::click()))
+                                .add(egui::Label::new(RichText::new("Stop all").font(sb(12.0)).color(RED())).sense(Sense::click()))
                                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                                 .clicked()
                             {
                                 self.modal = Modal::ConfirmStop(self.running);
                             }
                         }
-                        let (dot, txt) = if self.running > 0 { (GREEN, format!("{} Roblox running", self.running)) } else { (FAINT, "No Roblox running".into()) };
-                        ui.label(RichText::new(txt).font(rg(12.5)).color(MUTED));
+                        let (dot, txt) = if self.running > 0 { (GREEN(), format!("{} Roblox running", self.running)) } else { (FAINT(), "No Roblox running".into()) };
+                        ui.label(RichText::new(txt).font(rg(12.5)).color(MUTED()));
                         let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
                         ui.painter().circle_filled(r.center(), 3.5, dot);
                     });
@@ -1637,7 +1762,8 @@ impl App {
             alerts: s.discord_alerts,
             webhook: s.discord_webhook.clone(),
             rpc: s.discord_rpc,
-            rpc_app_id: s.discord_app_id.clone(),
+            // the built-in app ID unless the user set their own
+            rpc_app_id: if s.discord_app_id.trim().is_empty() { discord::DEFAULT_APP_ID.to_string() } else { s.discord_app_id.clone() },
             accounts: self.accounts.len(),
             fps_cap: s.fps_cap,
         };
@@ -1738,11 +1864,11 @@ impl App {
 
     fn clients_view(&mut self, ui: &mut egui::Ui) {
         if self.windows.is_empty() {
-            Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER)).inner_margin(Margin::same(40)).show(ui, |ui| {
+            Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER())).inner_margin(Margin::same(40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("No Roblox clients running").font(sb(17.0)).color(TEXT));
-                    ui.label(RichText::new("Launch an account and a live preview of it shows up here.").color(MUTED));
+                    ui.label(RichText::new("No Roblox clients running").font(sb(17.0)).color(TEXT()));
+                    ui.label(RichText::new("Launch an account and a live preview of it shows up here.").color(MUTED()));
                 });
             });
             return;
@@ -1769,7 +1895,7 @@ impl App {
                 for w in row {
                     let (rect, _) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::hover());
                     let p = ui.painter().clone();
-                    p.rect(rect, CornerRadius::same(12), SURFACE, line(1.0, BORDER), StrokeKind::Inside);
+                    p.rect(rect, CornerRadius::same(12), SURFACE(), line(1.0, BORDER()), StrokeKind::Inside);
                     let name = self.shared.lock().ok().and_then(|s| s.username_for_pid(w.pid));
                     let title = name.as_deref().map(|u| self.accounts.iter().find(|a| a.username == u).map(|a| a.title().to_string()).unwrap_or(u.to_string()));
                     let title = title.unwrap_or_else(|| "Roblox client".into());
@@ -1779,8 +1905,8 @@ impl App {
                     };
                     let hy = rect.top() + head / 2.0;
                     let bw = 70.0;
-                    paint_text(ui, &p, pos2(rect.left() + 14.0, hy - 8.0), Align::Min, &title, sb(13.5), TEXT, card_w - 2.0 * bw - 40.0);
-                    paint_text(ui, &p, pos2(rect.left() + 14.0, hy + 9.0), Align::Min, &sub, rg(11.5), FAINT, card_w - 2.0 * bw - 40.0);
+                    paint_text(ui, &p, pos2(rect.left() + 14.0, hy - 8.0), Align::Min, &title, sb(13.5), TEXT(), card_w - 2.0 * bw - 40.0);
+                    paint_text(ui, &p, pos2(rect.left() + 14.0, hy + 9.0), Align::Min, &sub, rg(11.5), FAINT(), card_w - 2.0 * bw - 40.0);
                     let close_r = Rect::from_min_size(pos2(rect.right() - 12.0 - bw, hy - 14.0), vec2(bw, 28.0));
                     let focus_r = Rect::from_min_size(pos2(close_r.left() - 8.0 - bw, hy - 14.0), vec2(bw, 28.0));
                     if ui.put(focus_r, |ui: &mut egui::Ui| ghost(ui, "Focus", vec2(bw, 28.0))).clicked() {
@@ -1790,9 +1916,9 @@ impl App {
                         close = Some(w.hwnd);
                     }
                     let preview = Rect::from_min_max(pos2(rect.left() + 8.0, rect.top() + head), pos2(rect.right() - 8.0, rect.bottom() - 8.0));
-                    p.rect_filled(preview, CornerRadius::same(8), FIELD);
+                    p.rect_filled(preview, CornerRadius::same(8), FIELD());
                     if w.minimized {
-                        paint_text(ui, &p, preview.center(), Align::Center, "Minimized. Click Focus to restore.", rg(12.5), FAINT, preview.width());
+                        paint_text(ui, &p, preview.center(), Align::Center, "Minimized. Click Focus to restore.", rg(12.5), FAINT(), preview.width());
                     }
                     self.thumb_targets.push((w.hwnd, preview.shrink(2.0), w.minimized));
                 }
@@ -1811,11 +1937,29 @@ impl App {
     fn settings_tab(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
         let section = |ui: &mut egui::Ui, title: &str, sub: &str| {
-            ui.label(RichText::new(title).font(sb(15.0)).color(TEXT));
+            ui.label(RichText::new(title).font(sb(15.0)).color(TEXT()));
             ui.add_space(-6.0);
-            ui.label(RichText::new(sub).font(rg(12.0)).color(MUTED));
+            ui.label(RichText::new(sub).font(rg(12.0)).color(MUTED()));
             ui.add_space(4.0);
         };
+
+        // ---- Appearance
+        panel_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            section(ui, "Theme", "Graphite: original dark. Terrava: bright lilac & cobalt. Neon: black & lime terminal.");
+            let cur = THEME.load(std::sync::atomic::Ordering::Relaxed) as usize;
+            if let Some(i) = segmented(ui, ui.id().with("theme"), &["Graphite", "Terrava", "Neon"], cur) {
+                let name = ["graphite", "terrava", "neon"][i];
+                self.settings.theme = name.into();
+                set_theme(name);
+                setup_style(ui.ctx());
+                if self.hwnd != 0 {
+                    win::set_title_bar_dark(self.hwnd as *mut std::ffi::c_void, !is_light());
+                }
+                changed = true;
+            }
+        });
+        ui.add_space(10.0);
 
         // ---- FPS limit
         panel_frame().show(ui, |ui| {
@@ -1838,7 +1982,7 @@ impl App {
                     }
                 }
             });
-            ui.label(RichText::new("Sets Roblox's own Maximum Frame Rate (FramerateCap) plus the TargetFps fast flag. Low FPS on alts saves a lot of CPU/GPU. Bloxstrap/Fishstrap users: set it there instead.").font(rg(11.5)).color(FAINT));
+            ui.label(RichText::new("Sets Roblox's own Maximum Frame Rate (FramerateCap) plus the TargetFps fast flag. Low FPS on alts saves a lot of CPU/GPU. Bloxstrap/Fishstrap users: set it there instead.").font(rg(11.5)).color(FAINT()));
         });
         ui.add_space(10.0);
 
@@ -1856,7 +2000,7 @@ impl App {
             }
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
-                ui.label(RichText::new("Every").font(rg(12.5)).color(MUTED));
+                ui.label(RichText::new("Every").font(rg(12.5)).color(MUTED()));
                 for m in [5u32, 10, 15, 19] {
                     if chip(ui, &format!("{m} min"), self.settings.afk_minutes == m).clicked() {
                         self.settings.afk_minutes = m;
@@ -1870,7 +2014,7 @@ impl App {
                 (true, None) => "Waits for a short pause in your typing, then briefly focuses each client.".to_string(),
                 (false, _) => "Off".to_string(),
             };
-            ui.label(RichText::new(status).font(rg(11.5)).color(FAINT));
+            ui.label(RichText::new(status).font(rg(11.5)).color(FAINT()));
             ui.add_space(4.0);
             divider(ui);
             let on = self.settings.auto_rejoin;
@@ -1888,7 +2032,7 @@ impl App {
                     "Reads each client's Roblox log. Only clients launched from this app are watched ({watching} now). Stops after 3 rejoins in 10 minutes. Turn on Multi Roblox when running several clients."
                 ))
                 .font(rg(11.5))
-                .color(FAINT),
+                .color(FAINT()),
             );
         });
         ui.add_space(10.0);
@@ -1905,7 +2049,7 @@ impl App {
                 self.settings.close_to_tray = !on;
                 changed = true;
             }
-            ui.label(RichText::new("Anti-AFK and auto-rejoin keep running in the tray. Right-click the tray icon for Stop all and Quit.").font(rg(11.5)).color(FAINT));
+            ui.label(RichText::new("Anti-AFK and auto-rejoin keep running in the tray. Right-click the tray icon for Stop all and Quit.").font(rg(11.5)).color(FAINT()));
         });
         ui.add_space(10.0);
 
@@ -1923,12 +2067,12 @@ impl App {
             }
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.settings.discord_webhook)
-                    .hint_text(RichText::new("Webhook URL (Channel settings > Integrations)").color(FAINT))
+                    .hint_text(RichText::new("Webhook URL (Channel settings > Integrations)").color(FAINT()))
                     .password(true)
                     .desired_width(f32::INFINITY)
                     .margin(vec2(10.0, 8.0)),
             );
-            if r.lost_focus() {
+            if r.changed() {
                 changed = true;
             }
             if ghost(ui, "Send test message", vec2(150.0, 30.0)).clicked() {
@@ -1955,14 +2099,24 @@ impl App {
                 self.settings.discord_rpc = !on;
                 changed = true;
             }
-            let r = field(ui, &mut self.settings.discord_app_id, "Discord Application ID", false);
-            if r.lost_focus() {
+            let r = field(ui, &mut self.settings.discord_app_id, "Custom Application ID (optional)", false);
+            if r.changed() {
+                // keep digits only, so a pasted ID with spaces still works
+                self.settings.discord_app_id.retain(|c| c.is_ascii_digit());
                 changed = true;
             }
+            let status = self.shared.lock().map(|s| s.rpc_status.clone()).unwrap_or_default();
+            if self.settings.discord_rpc && !status.is_empty() {
+                let (text, col) = match status.strip_prefix("OK: ") {
+                    Some(t) => (t.to_string(), GREEN()),
+                    None => (status, AMBER()),
+                };
+                ui.label(RichText::new(text).font(rg(12.5)).color(col));
+            }
             ui.label(
-                RichText::new("Create an application at discord.com/developers (name it what you want to show), then paste its Application ID. Discord must be running.")
+                RichText::new("Works out of the box with the built-in RBX Account Manager app. Leave the ID empty, or paste your own Application ID from discord.com/developers to show a different name. Discord must be running.")
                     .font(rg(11.5))
-                    .color(FAINT),
+                    .color(FAINT()),
             );
         });
         if changed {
@@ -1977,12 +2131,12 @@ impl App {
             .exact_width(372.0)
             .resizable(false)
             .show_separator_line(false)
-            .frame(Frame::new().fill(BG).inner_margin(Margin { left: 0, right: 24, top: 8, bottom: 16 }))
+            .frame(Frame::new().fill(BG()).inner_margin(Margin { left: 0, right: 24, top: 18, bottom: 16 }))
             .show(ctx, |ui| {
                 // tab bar: 32 px tall, aligned with the account list toolbar on the left
                 let w = ui.available_width();
                 let (rect, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
-                ui.painter().rect(rect, CornerRadius::same(8), SURFACE, line(1.0, BORDER), StrokeKind::Inside);
+                ui.painter().rect(rect, CornerRadius::same(8), SURFACE(), line(1.0, BORDER()), StrokeKind::Inside);
                 let tabs = [(Tab::Play, "Play"), (Tab::Servers, "Servers"), (Tab::Detail, "Account"), (Tab::Settings, "Settings")];
                 let tw = (w - 6.0) / tabs.len() as f32;
                 for (i, (t, label)) in tabs.iter().enumerate() {
@@ -1990,9 +2144,9 @@ impl App {
                     let resp = ui.interact(r, ui.id().with(("tab", i)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
                     let active = self.tab == *t;
                     if active {
-                        ui.painter().rect_filled(r, CornerRadius::same(6), CARD_HOVER);
+                        ui.painter().rect_filled(r, CornerRadius::same(6), CARD_HOVER());
                     }
-                    paint_text(ui, ui.painter(), r.center(), Align::Center, label, if active { sb(13.0) } else { rg(13.0) }, if active { TEXT } else { MUTED }, tw);
+                    paint_text(ui, ui.painter(), r.center(), Align::Center, label, if active { sb(13.0) } else { rg(13.0) }, if active { TEXT() } else { MUTED() }, tw);
                     if resp.clicked() {
                         self.tab = *t;
                     }
@@ -2021,9 +2175,9 @@ impl App {
             }
             ui.add_space(8.0);
             if self.settings.launch_home {
-                Frame::new().fill(CARD).corner_radius(CornerRadius::same(8)).inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
+                Frame::new().fill(CARD()).corner_radius(CornerRadius::same(8)).inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.label(RichText::new("Opens Roblox on the home screen, already signed in, without joining a game. Pick a game from inside Roblox.").font(rg(12.5)).color(MUTED));
+                    ui.label(RichText::new("Opens Roblox on the home screen, already signed in, without joining a game. Pick a game from inside Roblox.").font(rg(12.5)).color(MUTED()));
                 });
                 ui.add_space(10.0);
             } else {
@@ -2042,16 +2196,16 @@ impl App {
                     let xresp = ui.interact(xr, ui.id().with(("unpin", pin)), Sense::click()).on_hover_text("Unpin");
                     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
                     let p = ui.painter();
-                    let bg = if active { CARD_HOVER } else if resp.hovered() || xresp.hovered() { CARD } else { Color32::TRANSPARENT };
-                    p.rect(rect, CornerRadius::same(8), bg, if active { line(1.0, BORDER_HI) } else { Stroke::NONE }, StrokeKind::Inside);
+                    let bg = if active { CARD_HOVER() } else if resp.hovered() || xresp.hovered() { CARD() } else { Color32::TRANSPARENT };
+                    p.rect(rect, CornerRadius::same(8), bg, if active { line(1.0, BORDER_HI()) } else { Stroke::NONE }, StrokeKind::Inside);
                     // game icon
                     let ir = Rect::from_min_size(rect.min + vec2(7.0, 7.0), Vec2::splat(32.0));
-                    p.rect_filled(ir, CornerRadius::same(7), CARD_HOVER);
+                    p.rect_filled(ir, CornerRadius::same(7), CARD_HOVER());
                     if let Some(tex) = place.as_ref().and_then(|pl| self.game_icons.get(pl)) {
                         egui::Image::new(egui::load::SizedTexture::new(tex.id(), ir.size())).corner_radius(CornerRadius::same(7)).paint_at(ui, ir);
                     } else {
                         let letter: String = name.as_deref().unwrap_or(pin).chars().filter(|c| c.is_alphanumeric()).take(1).collect::<String>().to_uppercase();
-                        paint_text(ui, p, ir.center(), Align::Center, &letter, sb(13.0), MUTED, 30.0);
+                        paint_text(ui, p, ir.center(), Align::Center, &letter, sb(13.0), MUTED(), 30.0);
                     }
                     let tx = ir.right() + 10.0;
                     let maxw = rect.right() - 40.0 - tx;
@@ -2061,13 +2215,13 @@ impl App {
                         (None, _) if pin.starts_with('@') => (pin.clone(), "Join this player's game".to_string()),
                         (None, _) => (pin.clone(), "Link".to_string()),
                     };
-                    paint_text(ui, p, pos2(tx, rect.center().y - 8.0), Align::Min, &title, sb(13.0), TEXT, maxw);
-                    paint_text(ui, p, pos2(tx, rect.center().y + 9.0), Align::Min, &sub, rg(11.5), FAINT, maxw);
+                    paint_text(ui, p, pos2(tx, rect.center().y - 8.0), Align::Min, &title, sb(13.0), TEXT(), maxw);
+                    paint_text(ui, p, pos2(tx, rect.center().y + 9.0), Align::Min, &sub, rg(11.5), FAINT(), maxw);
                     if resp.hovered() || xresp.hovered() || active {
                         if xresp.hovered() {
-                            p.rect_filled(xr, CornerRadius::same(6), RED_BG);
+                            p.rect_filled(xr, CornerRadius::same(6), RED_BG());
                         }
-                        paint_x(p, xr.center(), 4.0, if xresp.hovered() { RED } else { FAINT });
+                        paint_x(p, xr.center(), 4.0, if xresp.hovered() { RED() } else { FAINT() });
                     }
                     if xresp.clicked() {
                         unpin = Some(pin.clone());
@@ -2087,13 +2241,13 @@ impl App {
             let g = self.game.trim().to_string();
             let pinned = !g.is_empty() && self.settings.favorite_games.iter().any(|x| x.eq_ignore_ascii_case(&g));
             let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
-            paint_text(ui, ui.painter(), r.left_center(), Align::Min, if pins.is_empty() { "GAME" } else { "OR ENTER A GAME" }, sb(11.5), MUTED, 200.0);
+            paint_text(ui, ui.painter(), r.left_center(), Align::Min, if pins.is_empty() { "GAME" } else { "OR ENTER A GAME" }, label_font(11.5), MUTED(), 200.0);
             if !g.is_empty() {
                 let label = if pinned { "Pinned" } else { "+ Pin this game" };
                 let w = text_width(ui, label, rg(12.0));
                 let lr = Rect::from_min_size(pos2(r.right() - w, r.top()), vec2(w, r.height()));
                 let resp = ui.interact(lr.expand(4.0), ui.id().with("pingame"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
-                let col = if pinned { GREEN } else if resp.hovered() { TEXT } else { MUTED };
+                let col = if pinned { GREEN() } else if resp.hovered() { TEXT() } else { MUTED() };
                 paint_text(ui, ui.painter(), pos2(lr.left(), r.center().y), Align::Min, label, rg(12.0), col, 200.0);
                 if resp.clicked() {
                     if pinned {
@@ -2156,7 +2310,7 @@ impl App {
                     nv = (v + 1).min(30);
                 }
                 let (r, _) = ui.allocate_exact_size(vec2(52.0, 28.0), Sense::hover());
-                paint_text(ui, ui.painter(), r.center(), Align::Center, &format!("{v} s"), sb(13.0), TEXT, 60.0);
+                paint_text(ui, ui.painter(), r.center(), Align::Center, &format!("{v} s"), sb(13.0), TEXT(), 60.0);
                 if icon_button(ui, Icon::Minus, vec2(28.0, 28.0)).clicked() {
                     nv = v.saturating_sub(1).max(2);
                 }
@@ -2171,7 +2325,7 @@ impl App {
             let n = self.selected.len();
             let names: Vec<String> = self.selected.iter().filter_map(|id| self.account(id).map(|a| a.title().to_string())).collect();
             let summary = if n == 0 { "Select accounts in the list on the left".to_string() } else { format!("{n} selected: {}", names.join(", ")) };
-            ui.label(elide(ui, &summary, rg(12.5), if n == 0 { FAINT } else { MUTED }, ui.available_width()));
+            ui.label(elide(ui, &summary, rg(12.5), if n == 0 { FAINT() } else { MUTED() }, ui.available_width()));
             if self.cancel.is_some() {
                 if danger(ui, "Cancel batch", vec2(ui.available_width(), 44.0)).clicked() {
                     if let Some(c) = &self.cancel {
@@ -2189,7 +2343,7 @@ impl App {
                     self.launch(&ctx);
                 }
             }
-            ui.vertical_centered(|ui| ui.label(RichText::new("Ctrl+Enter").font(rg(11.5)).color(FAINT)));
+            ui.vertical_centered(|ui| ui.label(RichText::new("Ctrl+Enter").font(rg(11.5)).color(FAINT())));
         });
         ui.add_space(12.0);
         panel_frame().show(ui, |ui| {
@@ -2215,13 +2369,13 @@ impl App {
         let ctx = ui.ctx().clone();
         panel_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new("Public servers").font(sb(15.0)).color(TEXT));
+            ui.label(RichText::new("Public servers").font(sb(15.0)).color(TEXT()));
             let place_now = roblox::parse_game(&self.game, "").ok().map(|g| g.place_id).filter(|p| !p.is_empty());
             let sub = match &place_now {
                 Some(p) => format!("Place {p}"),
                 None => "Enter a game in the Play tab first".into(),
             };
-            ui.label(RichText::new(sub).font(rg(12.5)).color(MUTED));
+            ui.label(RichText::new(sub).font(rg(12.5)).color(MUTED()));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 let label = if self.servers_loading { "Loading..." } else { "Load servers" };
@@ -2229,7 +2383,7 @@ impl App {
                     self.load_servers(&ctx);
                 }
                 if self.servers_loading {
-                    ui.add(egui::Spinner::new().color(TEXT));
+                    ui.add(egui::Spinner::new().color(TEXT()));
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if chip(ui, "Ping", self.server_sort == ServerSort::Ping).clicked() {
@@ -2241,13 +2395,13 @@ impl App {
                 });
             });
             if let Some(e) = &self.servers_error {
-                ui.label(RichText::new(e).font(rg(12.5)).color(RED));
+                ui.label(RichText::new(e).font(rg(12.5)).color(RED()));
             }
         });
         ui.add_space(8.0);
         if self.servers.is_empty() {
             ui.add_space(20.0);
-            ui.vertical_centered(|ui| ui.label(RichText::new("No servers loaded yet.").color(FAINT)));
+            ui.vertical_centered(|ui| ui.label(RichText::new("No servers loaded yet.").color(FAINT())));
             return;
         }
         let mut list = self.servers.clone();
@@ -2255,22 +2409,22 @@ impl App {
             ServerSort::Players => list.sort_by(|a, b| b.playing.cmp(&a.playing)),
             ServerSort::Ping => list.sort_by_key(|s| s.ping.unwrap_or(i64::MAX)),
         }
-        ui.label(RichText::new(format!("{} servers  •  place {}", list.len(), self.servers_place)).font(rg(12.0)).color(FAINT));
+        ui.label(RichText::new(format!("{} servers  •  place {}", list.len(), self.servers_place)).font(rg(12.0)).color(FAINT()));
         let mut join: Option<String> = None;
         let mut pick: Option<String> = None;
         for s in list.iter().take(150) {
-            Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).stroke(line(1.0, BORDER)).show(ui, |ui| {
+            Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(10)).inner_margin(Margin::symmetric(12, 8)).stroke(line(1.0, BORDER())).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(RichText::new(format!("{}/{} players", s.playing, s.max)).font(sb(13.0)).color(TEXT));
+                        ui.label(RichText::new(format!("{}/{} players", s.playing, s.max)).font(sb(13.0)).color(TEXT()));
                         ui.add_space(-6.0);
                         let (r, _) = ui.allocate_exact_size(vec2(110.0, 4.0), Sense::hover());
-                        ui.painter().rect_filled(r, CornerRadius::same(2), BORDER_HI);
+                        ui.painter().rect_filled(r, CornerRadius::same(2), BORDER_HI());
                         let frac = if s.max > 0 { (s.playing as f32 / s.max as f32).clamp(0.0, 1.0) } else { 0.0 };
-                        ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(r.width() * frac, 4.0)), CornerRadius::same(2), TEXT);
+                        ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(r.width() * frac, 4.0)), CornerRadius::same(2), TEXT());
                         let ping = s.ping.map(|p| format!("{p} ms")).unwrap_or_else(|| "- ms".into());
-                        ui.label(RichText::new(ping).font(rg(12.0)).color(MUTED));
+                        ui.label(RichText::new(ping).font(rg(12.0)).color(MUTED()));
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if primary(ui, "Join", vec2(60.0, 30.0), !self.selected.is_empty() && self.busy.is_none()).on_hover_text("Launch the selected accounts into this server").clicked() {
@@ -2304,8 +2458,8 @@ impl App {
         if self.selected.len() != 1 {
             panel_frame().show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.label(RichText::new("Select one account").font(sb(15.0)).color(TEXT));
-                ui.label(RichText::new("Click an account to see its details, Robux, status and notes.").color(MUTED));
+                ui.label(RichText::new("Select one account").font(sb(15.0)).color(TEXT()));
+                ui.label(RichText::new("Click an account to see its details, Robux, status and notes.").color(MUTED()));
             });
             return;
         }
@@ -2327,23 +2481,23 @@ impl App {
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
                 if let Some(tex) = self.avatars.get(&id) {
-                    ui.painter().circle_filled(r.center(), 28.0, CARD_HOVER);
+                    ui.painter().circle_filled(r.center(), 28.0, CARD_HOVER());
                     egui::Image::new(egui::load::SizedTexture::new(tex.id(), r.size())).corner_radius(CornerRadius::same(28)).paint_at(ui, r);
                 } else {
-                    ui.painter().circle_filled(r.center(), 28.0, CARD_HOVER);
-                    paint_text(ui, ui.painter(), r.center(), Align::Center, &initials(&acc), sb(18.0), MUTED, 60.0);
+                    ui.painter().circle_filled(r.center(), 28.0, CARD_HOVER());
+                    paint_text(ui, ui.painter(), r.center(), Align::Center, &initials(&acc), sb(18.0), MUTED(), 60.0);
                 }
                 ui.vertical(|ui| {
                     ui.add_space(4.0);
-                    ui.label(RichText::new(if acc.display_name.is_empty() { &acc.username } else { &acc.display_name }).font(sb(16.0)).color(TEXT));
+                    ui.label(RichText::new(if acc.display_name.is_empty() { &acc.username } else { &acc.display_name }).font(sb(16.0)).color(TEXT()));
                     ui.add_space(-7.0);
-                    ui.label(RichText::new(format!("@{}  •  ID {}", acc.username, acc.user_id)).font(rg(12.5)).color(MUTED));
+                    ui.label(RichText::new(format!("@{}  •  ID {}", acc.username, acc.user_id)).font(rg(12.5)).color(MUTED()));
                     let (txt, col) = match pres.as_ref().map(|p| p.kind) {
-                        Some(2) => (format!("In game: {}", pres.as_ref().map(|p| p.location.as_str()).unwrap_or("")), GREEN),
-                        Some(1) => ("Online".to_string(), BLUE),
-                        Some(3) => ("In Studio".to_string(), AMBER),
-                        _ if !acc.is_ok() => ("Cookie expired".to_string(), RED),
-                        _ => ("Offline".to_string(), FAINT),
+                        Some(2) => (format!("In game: {}", pres.as_ref().map(|p| p.location.as_str()).unwrap_or("")), GREEN()),
+                        Some(1) => ("Online".to_string(), BLUE()),
+                        Some(3) => ("In Studio".to_string(), AMBER()),
+                        _ if !acc.is_ok() => ("Cookie expired".to_string(), RED()),
+                        _ => ("Offline".to_string(), FAINT()),
                     };
                     ui.add_space(-5.0);
                     ui.label(RichText::new(txt).font(rg(12.5)).color(col));
@@ -2366,20 +2520,20 @@ impl App {
                     for (k, v) in row {
                         let (r, _) = ui.allocate_exact_size(vec2(cw, 48.0), Sense::hover());
                         let p = ui.painter();
-                        p.rect_filled(r, CornerRadius::same(8), CARD);
-                        paint_text(ui, p, r.min + vec2(10.0, 15.0), Align::Min, k, rg(11.5), FAINT, cw - 20.0);
-                        paint_text(ui, p, r.min + vec2(10.0, 32.0), Align::Min, v, sb(14.0), TEXT, cw - 20.0);
+                        p.rect_filled(r, CornerRadius::same(8), CARD());
+                        paint_text(ui, p, r.min + vec2(10.0, 15.0), Align::Min, k, rg(11.5), FAINT(), cw - 20.0);
+                        paint_text(ui, p, r.min + vec2(10.0, 32.0), Align::Min, v, sb(14.0), TEXT(), cw - 20.0);
                     }
                 });
             }
             ui.horizontal(|ui| {
                 let loading = self.details_loading.contains(&id);
                 let l = if loading { "Loading..." } else { "Refresh" };
-                if ui.add(egui::Label::new(RichText::new(l).font(rg(12.0)).color(MUTED)).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() && !loading {
+                if ui.add(egui::Label::new(RichText::new(l).font(rg(12.0)).color(MUTED())).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() && !loading {
                     self.details.remove(&id);
                 }
                 if det.as_ref().map(|d| d.banned).unwrap_or(false) {
-                    ui.label(RichText::new("This account is banned").font(sb(12.0)).color(RED));
+                    ui.label(RichText::new("This account is banned").font(sb(12.0)).color(RED()));
                 }
             });
         });
@@ -2405,7 +2559,7 @@ impl App {
             }
             ui.add_space(4.0);
             caption(ui, "NOTES");
-            ui.add(egui::TextEdit::multiline(&mut buf.note).desired_rows(3).desired_width(f32::INFINITY).margin(vec2(10.0, 8.0)).hint_text(RichText::new("Private notes").color(FAINT)));
+            ui.add(egui::TextEdit::multiline(&mut buf.note).desired_rows(3).desired_width(f32::INFINITY).margin(vec2(10.0, 8.0)).hint_text(RichText::new("Private notes").color(FAINT())));
             let dirty = buf.alias != acc.alias || buf.group != acc.group || buf.note != acc.note;
             ui.add_space(6.0);
             ui.horizontal(|ui| {
@@ -2413,12 +2567,12 @@ impl App {
                     act = Some(0);
                 }
                 if dirty {
-                    ui.label(RichText::new("Unsaved changes").font(rg(12.0)).color(AMBER));
+                    ui.label(RichText::new("Unsaved changes").font(rg(12.0)).color(AMBER()));
                 }
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Favorite").color(TEXT));
+                ui.label(RichText::new("Favorite").color(TEXT()));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if toggle(ui, acc.favorite).clicked() {
                         act = Some(1);
@@ -2427,9 +2581,9 @@ impl App {
             });
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.label(RichText::new("MAIN account").color(TEXT));
+                    ui.label(RichText::new("MAIN account").color(TEXT()));
                     ui.add_space(-7.0);
-                    ui.label(RichText::new("Skipped by \"select all\"").font(rg(12.0)).color(MUTED));
+                    ui.label(RichText::new("Skipped by \"select all\"").font(rg(12.0)).color(MUTED()));
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if toggle(ui, acc.main).clicked() {
@@ -2476,7 +2630,7 @@ impl App {
     // -------------------------------------------------------------- ui: account list
     fn central(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(BG).inner_margin(Margin { left: 24, right: 16, top: 8, bottom: 16 }))
+            .frame(Frame::new().fill(BG()).inner_margin(Margin { left: 24, right: 16, top: 18, bottom: 16 }))
             .show(ctx, |ui| {
                 // toolbar: 32 px tall, aligned with the tab bar on the right
                 let w = ui.available_width();
@@ -2499,9 +2653,9 @@ impl App {
                         self.next_windows = 0.0;
                     }
                     let (sep, _) = ui.allocate_exact_size(vec2(9.0, 20.0), Sense::hover());
-                    ui.painter().vline(sep.center().x, sep.y_range(), line(1.0, BORDER_HI));
+                    ui.painter().vline(sep.center().x, sep.y_range(), line(1.0, BORDER_HI()));
                     if self.view == View::Clients {
-                        ui.label(RichText::new("Live previews of every running Roblox client").font(rg(12.5)).color(FAINT));
+                        ui.label(RichText::new("Live previews of every running Roblox client").font(rg(12.5)).color(FAINT()));
                         return;
                     }
                     let mut f = vec![(Filter::All, format!("All  {}", counts.0))];
@@ -2522,13 +2676,13 @@ impl App {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if !self.selected.is_empty() {
                             if ui
-                                .add(egui::Label::new(RichText::new("Clear selection").font(rg(12.5)).color(TEXT)).sense(Sense::click()))
+                                .add(egui::Label::new(RichText::new("Clear selection").font(rg(12.5)).color(TEXT())).sense(Sense::click()))
                                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                                 .clicked()
                             {
                                 self.selected.clear();
                             }
-                            ui.label(RichText::new(format!("{} selected  •", self.selected.len())).font(rg(12.5)).color(MUTED));
+                            ui.label(RichText::new(format!("{} selected  •", self.selected.len())).font(rg(12.5)).color(MUTED()));
                         }
                     });
                 });
@@ -2544,7 +2698,7 @@ impl App {
                 }
                 let ids = self.visible_ids();
                 let mut actions = vec![];
-                Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER)).show(ui, |ui| {
+                Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER())).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.spacing_mut().item_spacing.y = 0.0;
                     let w = ui.available_width();
@@ -2553,7 +2707,7 @@ impl App {
                     let c = Cols::new(hr);
                     let p = ui.painter();
                     let cap = |x: f32, t: &str| {
-                        paint_text(ui, p, pos2(x, hr.center().y), Align::Min, t, sb(11.0), FAINT, 200.0);
+                        paint_text(ui, p, pos2(x, hr.center().y), Align::Min, t, label_font(11.0), FAINT(), 200.0);
                     };
                     cap(c.avatar, "ACCOUNT");
                     if let Some(x) = c.group {
@@ -2580,11 +2734,11 @@ impl App {
                             self.selected = selectable;
                         }
                     }
-                    ui.painter().hline(hr.x_range(), hr.bottom(), line(1.0, BORDER));
+                    ui.painter().hline(hr.x_range(), hr.bottom(), line(1.0, BORDER()));
 
                     if ids.is_empty() {
                         ui.add_space(30.0);
-                        ui.vertical_centered(|ui| ui.label(RichText::new("No matching accounts.").color(MUTED)));
+                        ui.vertical_centered(|ui| ui.label(RichText::new("No matching accounts.").color(MUTED())));
                         ui.add_space(30.0);
                         return;
                     }
@@ -2614,13 +2768,13 @@ impl App {
         let p = ui.painter().clone();
         let radius = if last { CornerRadius { nw: 0, ne: 0, sw: 12, se: 12 } } else { CornerRadius::ZERO };
         if selected {
-            p.rect_filled(rect.shrink2(vec2(1.0, 0.0)), radius, SELECT_BG);
-            p.rect_filled(Rect::from_min_size(rect.min + vec2(1.0, 8.0), vec2(2.0, rect.height() - 16.0)), CornerRadius::same(1), PRIMARY);
+            p.rect_filled(rect.shrink2(vec2(1.0, 0.0)), radius, SELECT_BG());
+            p.rect_filled(Rect::from_min_size(rect.min + vec2(1.0, 8.0), vec2(2.0, rect.height() - 16.0)), CornerRadius::same(1), PRIMARY());
         } else if hovered {
-            p.rect_filled(rect.shrink2(vec2(1.0, 0.0)), radius, CARD_HOVER);
+            p.rect_filled(rect.shrink2(vec2(1.0, 0.0)), radius, CARD_HOVER());
         }
         if !last {
-            p.hline(rect.x_range(), rect.bottom(), line(1.0, BORDER));
+            p.hline(rect.x_range(), rect.bottom(), line(1.0, BORDER()));
         }
         let cy = rect.center().y;
 
@@ -2634,26 +2788,26 @@ impl App {
         let r = 18.0;
         let ac = pos2(c.avatar + r, cy);
         let av = Rect::from_center_size(ac, Vec2::splat(r * 2.0));
-        p.circle_filled(ac, r, CARD_HOVER);
+        p.circle_filled(ac, r, CARD_HOVER());
         if let Some(tex) = self.avatars.get(&acc.user_id) {
             egui::Image::new(egui::load::SizedTexture::new(tex.id(), av.size())).corner_radius(CornerRadius::same(r as u8)).paint_at(ui, av);
         } else {
-            paint_text(ui, &p, ac, Align::Center, &initials(acc), sb(12.5), MUTED, 40.0);
+            paint_text(ui, &p, ac, Align::Center, &initials(acc), sb(12.5), MUTED(), 40.0);
         }
         let (dot_col, status, status_col) = if !acc.is_ok() {
-            (RED, "Cookie expired".to_string(), RED)
+            (RED(), "Cookie expired".to_string(), RED())
         } else {
             match pres.map(|p| p.kind) {
                 Some(2) => {
                     let loc = pres.map(|p| p.location.clone()).unwrap_or_default();
-                    (GREEN, if loc.is_empty() { "In game".to_string() } else { loc }, GREEN)
+                    (GREEN(), if loc.is_empty() { "In game".to_string() } else { loc }, GREEN())
                 }
-                Some(1) => (BLUE, "Online".to_string(), BLUE),
-                Some(3) => (AMBER, "In Studio".to_string(), AMBER),
-                _ => (FAINT, "Offline".to_string(), FAINT),
+                Some(1) => (BLUE(), "Online".to_string(), BLUE()),
+                Some(3) => (AMBER(), "In Studio".to_string(), AMBER()),
+                _ => (FAINT(), "Offline".to_string(), FAINT()),
             }
         };
-        let bg_now = if selected { SELECT_BG } else if hovered { CARD_HOVER } else { SURFACE };
+        let bg_now = if selected { SELECT_BG() } else if hovered { CARD_HOVER() } else { SURFACE() };
         let dot = ac + vec2(r * 0.72, r * 0.72);
         p.circle_filled(dot, 5.5, bg_now);
         p.circle_filled(dot, 3.5, dot_col);
@@ -2662,21 +2816,21 @@ impl App {
         let name_x = av.right() + 12.0;
         let name_w = c.name_end - name_x;
         // two text lines: line 1 centred at cy-9, line 2 at cy+10
-        let tw = paint_text(ui, &p, pos2(name_x, cy - 9.0), Align::Min, acc.title(), sb(14.0), TEXT, name_w - if acc.main { 52.0 } else { 0.0 });
+        let tw = paint_text(ui, &p, pos2(name_x, cy - 9.0), Align::Min, acc.title(), sb(14.0), TEXT(), name_w - if acc.main { 52.0 } else { 0.0 });
         if acc.main {
-            pill(ui, &p, pos2(name_x + tw + 8.0, cy - 9.0 - 9.5), "MAIN", AMBER, AMBER_BG);
+            pill(ui, &p, pos2(name_x + tw + 8.0, cy - 9.0 - 9.5), "MAIN", AMBER(), AMBER_BG());
         }
-        paint_text(ui, &p, pos2(name_x, cy + 10.0), Align::Min, &format!("@{}", acc.username), rg(12.5), MUTED, name_w);
+        paint_text(ui, &p, pos2(name_x, cy + 10.0), Align::Min, &format!("@{}", acc.username), rg(12.5), MUTED(), name_w);
 
         // group
         if let Some(x) = c.group {
             if acc.group.trim().is_empty() {
-                paint_text(ui, &p, pos2(x, cy), Align::Min, "—", rg(13.0), FAINT, 40.0);
+                paint_text(ui, &p, pos2(x, cy), Align::Min, "—", rg(13.0), FAINT(), 40.0);
             } else {
                 let gw = text_width(ui, acc.group.trim(), sb(11.0)).min(c.group_w - 30.0);
                 let pr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(gw + 14.0, 20.0));
-                p.rect_filled(pr, CornerRadius::same(5), CARD_HOVER);
-                paint_text(ui, &p, pr.center(), Align::Center, acc.group.trim(), sb(11.0), MUTED, c.group_w - 30.0);
+                p.rect_filled(pr, CornerRadius::same(5), CARD_HOVER());
+                paint_text(ui, &p, pr.center(), Align::Center, acc.group.trim(), sb(11.0), MUTED(), c.group_w - 30.0);
             }
         }
         // status
@@ -2685,13 +2839,13 @@ impl App {
         // last played
         if let Some(x) = c.last {
             let t = if acc.last_played.is_empty() { "—".to_string() } else { acc.last_played.clone() };
-            paint_text(ui, &p, pos2(x, cy), Align::Min, &t, rg(12.5), if acc.last_played.is_empty() { FAINT } else { MUTED }, 120.0);
+            paint_text(ui, &p, pos2(x, cy), Align::Min, &t, rg(12.5), if acc.last_played.is_empty() { FAINT() } else { MUTED() }, 120.0);
         }
         // favorite star
         let sr = Rect::from_center_size(pos2(c.star, cy), vec2(26.0, 26.0));
         let star = ui.interact(sr, ui.id().with(("star", &acc.user_id)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
         if acc.favorite || hovered || star.hovered() {
-            let col = if acc.favorite { AMBER } else if star.hovered() { TEXT } else { FAINT };
+            let col = if acc.favorite { AMBER() } else if star.hovered() { TEXT() } else { FAINT() };
             paint_star(&p, sr.center(), 7.0, acc.favorite, col);
         }
 
@@ -2730,7 +2884,7 @@ impl App {
                 }
             }
             ui.separator();
-            if ui.button(RichText::new("Delete account").color(RED)).clicked() {
+            if ui.button(RichText::new("Delete account").color(RED())).clicked() {
                 action = Some(CardAction::Delete(id));
                 ui.close_menu();
             }
@@ -2739,11 +2893,11 @@ impl App {
     }
 
     fn empty_state(&mut self, ui: &mut egui::Ui) {
-        Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER)).inner_margin(Margin::same(40)).show(ui, |ui| {
+        Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(12)).stroke(line(1.0, BORDER())).inner_margin(Margin::same(40)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.vertical_centered(|ui| {
-                ui.label(RichText::new("No accounts yet").font(sb(18.0)).color(TEXT));
-                ui.label(RichText::new("Data is encrypted and only stored on this PC.").color(MUTED));
+                ui.label(RichText::new("No accounts yet").font(sb(18.0)).color(TEXT()));
+                ui.label(RichText::new("Data is encrypted and only stored on this PC.").color(MUTED()));
                 ui.add_space(14.0);
                 if primary(ui, "Add with a cookie", vec2(240.0, 38.0), true).clicked() {
                     self.open_add();
@@ -2760,12 +2914,12 @@ impl App {
     fn modals(&mut self, ctx: &egui::Context) {
         let mut modal = std::mem::replace(&mut self.modal, Modal::None);
         let mut keep = true;
-        let frame = Frame::new().fill(SURFACE).corner_radius(CornerRadius::same(14)).inner_margin(Margin::same(22)).stroke(line(1.0, BORDER_HI));
+        let frame = Frame::new().fill(SURFACE()).corner_radius(CornerRadius::same(14)).inner_margin(Margin::same(22)).stroke(line(1.0, BORDER_HI()));
         let title = |ui: &mut egui::Ui, t: &str, sub: &str| {
-            ui.label(RichText::new(t).font(sb(19.0)).color(TEXT));
+            ui.label(RichText::new(t).font(sb(19.0)).color(TEXT()));
             if !sub.is_empty() {
                 ui.add_space(-4.0);
-                ui.label(RichText::new(sub).color(MUTED));
+                ui.label(RichText::new(sub).color(MUTED()));
             }
             ui.add_space(10.0);
         };
@@ -2776,7 +2930,7 @@ impl App {
                 let r = egui::Modal::new(egui::Id::new("add")).frame(frame).show(ctx, |ui| {
                     ui.set_width(520.0);
                     title(ui, "Add account", "Sign in once in a browser and copy the cookie.");
-                    Frame::new().fill(CARD).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(14)).show(ui, |ui| {
+                    Frame::new().fill(CARD()).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(14)).show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         let steps = [
                             "Open an Incognito window and sign in to roblox.com with this account.",
@@ -2786,18 +2940,18 @@ impl App {
                         ];
                         for (i, s) in steps.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("{}.", i + 1)).font(sb(13.0)).color(FAINT));
-                                ui.label(RichText::new(*s).font(rg(13.5)).color(TEXT));
+                                ui.label(RichText::new(format!("{}.", i + 1)).font(sb(13.0)).color(FAINT()));
+                                ui.label(RichText::new(*s).font(rg(13.5)).color(TEXT()));
                             });
                         }
                     });
                     ui.add_space(6.0);
-                    ui.label(RichText::new("Never share this cookie. Anyone who has it can sign in to your account.").font(rg(12.5)).color(RED));
+                    ui.label(RichText::new("Never share this cookie. Anyone who has it can sign in to your account.").font(rg(12.5)).color(RED()));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         caption(ui, "COOKIE .ROBLOSECURITY");
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            ui.checkbox(show, RichText::new("Show").font(rg(12.5)).color(MUTED));
+                            ui.checkbox(show, RichText::new("Show").font(rg(12.5)).color(MUTED()));
                         });
                     });
                     let resp = field(ui, cookie, "Paste the cookie here", !*show);
@@ -2808,13 +2962,13 @@ impl App {
                     caption(ui, "ALIAS  (optional)");
                     field(ui, alias, "e.g. Main, Alt 1", false);
                     if let Some(e) = error {
-                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED));
+                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED()));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if *checking {
                             primary(ui, "Checking...", vec2(120.0, 36.0), false);
-                            ui.add(egui::Spinner::new().color(TEXT));
+                            ui.add(egui::Spinner::new().color(TEXT()));
                         } else if primary(ui, "Add", vec2(120.0, 36.0), true).clicked() {
                             submit = true;
                         }
@@ -2846,19 +3000,19 @@ impl App {
                                 .desired_width(f32::INFINITY)
                                 .font(FontId::monospace(11.5))
                                 .margin(vec2(10.0, 8.0))
-                                .hint_text(RichText::new("_|WARNING:-DO-NOT-SHARE-THIS...\nusername:_|WARNING:-DO-NOT-SHARE-THIS...").color(FAINT)),
+                                .hint_text(RichText::new("_|WARNING:-DO-NOT-SHARE-THIS...\nusername:_|WARNING:-DO-NOT-SHARE-THIS...").color(FAINT())),
                         );
                     });
                     let n = text.lines().filter_map(extract_cookie).count();
-                    ui.label(RichText::new(format!("{n} cookies detected")).font(rg(12.5)).color(MUTED));
+                    ui.label(RichText::new(format!("{n} cookies detected")).font(rg(12.5)).color(MUTED()));
                     if let Some(e) = error {
-                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED));
+                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED()));
                     }
                     ui.add_space(10.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if let Some((i, n)) = progress {
                             primary(ui, &format!("Checking {i}/{n}"), vec2(150.0, 36.0), false);
-                            ui.add(egui::Spinner::new().color(TEXT));
+                            ui.add(egui::Spinner::new().color(TEXT()));
                         } else {
                             if primary(ui, "Add all", vec2(130.0, 36.0), n > 0).clicked() {
                                 submit = true;
@@ -2922,11 +3076,11 @@ impl App {
                 let r = egui::Modal::new(egui::Id::new("delete")).frame(frame).show(ctx, |ui| {
                     ui.set_width(400.0);
                     title(ui, &format!("Delete {} account(s)?", names.len()), "");
-                    ui.label(RichText::new(names.join(", ")).color(TEXT));
-                    ui.label(RichText::new("Accounts are only removed from this manager. The Roblox accounts themselves are not deleted.").color(MUTED));
+                    ui.label(RichText::new(names.join(", ")).color(TEXT()));
+                    ui.label(RichText::new("Accounts are only removed from this manager. The Roblox accounts themselves are not deleted.").color(MUTED()));
                     ui.add_space(12.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if button(ui, "Delete", vec2(100.0, 36.0), RED, hex(0xEC7A72), ON_PRIMARY, sb(14.0), true).clicked() {
+                        if button(ui, "Delete", vec2(100.0, 36.0), RED(), hex(0xEC7A72), ON_PRIMARY(), sb(14.0), true).clicked() {
                             confirm = true;
                         }
                         if ghost(ui, "Cancel", vec2(84.0, 36.0)).clicked() {
@@ -2953,7 +3107,7 @@ impl App {
                     ui.set_width(380.0);
                     title(ui, &format!("Close {n} Roblox window(s)?"), "Every Roblox Player window will be force-closed. Unsaved in-game progress may be lost.");
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if button(ui, "Close all", vec2(120.0, 36.0), RED, hex(0xEC7A72), ON_PRIMARY, sb(14.0), true).clicked() {
+                        if button(ui, "Close all", vec2(120.0, 36.0), RED(), hex(0xEC7A72), ON_PRIMARY(), sb(14.0), true).clicked() {
                             confirm = true;
                         }
                         if ghost(ui, "Cancel", vec2(84.0, 36.0)).clicked() {
@@ -2981,18 +3135,18 @@ impl App {
                     caption(ui, "AccountData.json LOCATION");
                     field(ui, path, r"e.g. D:\AccountData.json", false);
                     if found {
-                        ui.label(RichText::new("File found").font(rg(12.5)).color(GREEN));
+                        ui.label(RichText::new("File found").font(rg(12.5)).color(GREEN()));
                     } else {
-                        ui.label(RichText::new("It's usually in your Roblox Account Manager folder.").font(rg(12.5)).color(FAINT));
+                        ui.label(RichText::new("It's usually in your Roblox Account Manager folder.").font(rg(12.5)).color(FAINT()));
                     }
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new("Cookies are re-encrypted with DPAPI and stored on this PC. The original file is not modified. Every account is checked after import.")
                             .font(rg(12.5))
-                            .color(MUTED),
+                            .color(MUTED()),
                     );
                     if let Some(e) = error {
-                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED));
+                        ui.label(RichText::new(e.as_str()).font(rg(13.0)).color(RED()));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -3040,22 +3194,22 @@ impl App {
             .show(ctx, |ui| {
                 for t in self.toasts.iter().rev().take(4) {
                     let col = match t.kind {
-                        ToastKind::Ok => GREEN,
-                        ToastKind::Err => RED,
-                        ToastKind::Info => AMBER,
+                        ToastKind::Ok => GREEN(),
+                        ToastKind::Err => RED(),
+                        ToastKind::Info => AMBER(),
                     };
                     Frame::new()
-                        .fill(CARD)
+                        .fill(CARD())
                         .corner_radius(CornerRadius::same(10))
                         .inner_margin(Margin::symmetric(14, 10))
-                        .stroke(line(1.0, BORDER_HI))
-                        .shadow(egui::Shadow { offset: [0, 6], blur: 20, spread: 0, color: Color32::from_black_alpha(110) })
+                        .stroke(line(1.0, BORDER_HI()))
+                        .shadow(egui::Shadow { offset: [0, 6], blur: 20, spread: 0, color: Color32::from_black_alpha(if is_light() { 28 } else { 110 }) })
                         .show(ui, |ui| {
                             ui.set_max_width(360.0);
                             ui.horizontal(|ui| {
                                 let (r, _) = ui.allocate_exact_size(vec2(3.0, 18.0), Sense::hover());
                                 ui.painter().rect_filled(r, CornerRadius::same(1), col);
-                                ui.add(egui::Label::new(RichText::new(&t.text).font(rg(13.5)).color(TEXT)).wrap());
+                                ui.add(egui::Label::new(RichText::new(&t.text).font(rg(13.5)).color(TEXT())).wrap());
                             });
                         });
                     ui.add_space(4.0);
@@ -3148,7 +3302,7 @@ impl eframe::App for App {
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        egui::Rgba::from(BG).to_array()
+        egui::Rgba::from(BG()).to_array()
     }
 }
 

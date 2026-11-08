@@ -148,16 +148,6 @@ pub fn kill_pids(pids: &[u32]) -> usize {
     n
 }
 
-pub fn dark_title_bar(hwnd: *mut c_void) {
-    let on: i32 = 1;
-    unsafe {
-        // 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 20H1+), 19 = older builds
-        if DwmSetWindowAttribute(hwnd as _, 20, &on as *const i32 as _, 4) != 0 {
-            DwmSetWindowAttribute(hwnd as _, 19, &on as *const i32 as _, 4);
-        }
-    }
-}
-
 // ------------------------------------------------------------------ Roblox windows
 /// A top-level Roblox Player window.
 #[derive(Clone, Copy, Debug)]
@@ -334,5 +324,15 @@ pub fn mutex_exists(name: &str) -> bool {
         }
         CloseHandle(h);
         true
+    }
+}
+
+/// Light or dark window title bar. Attribute 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 20H1+), 19 = older builds.
+pub fn set_title_bar_dark(hwnd: *mut c_void, dark: bool) {
+    let v: i32 = dark as i32;
+    unsafe {
+        if DwmSetWindowAttribute(hwnd as _, 20, &v as *const i32 as _, 4) != 0 {
+            DwmSetWindowAttribute(hwnd as _, 19, &v as *const i32 as _, 4);
+        }
     }
 }
