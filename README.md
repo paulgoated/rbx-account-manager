@@ -40,6 +40,11 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/rafael
 - **Close to tray**: the X button hides the app; Anti-AFK and auto-rejoin keep running. The tray menu has Show, Anti-AFK, Stop all Roblox and Quit
 - **Discord**: Rich Presence works out of the box (on by default, turn it off in Settings) and shows the app plus how many clients are running on your profile. Optional webhook alerts for disconnects, rejoins and finished batches. Advanced: use your own Discord Application ID to show a different name
 
+**Updates**
+- Checks this repo's GitHub releases on startup (can be turned off). A bar offers **Update now**, **Skip this version** or **Later**
+- **Update now** downloads the new exe, checks it against the SHA256 in the release notes, replaces the app and restarts it. Accounts and settings are kept
+- Skipped versions aren't offered again, but newer ones are. Undo a skip in **Settings → Updates**
+
 **Lightweight**
 - Single ~7 MB `.exe`, no installer
 - Hands unused memory back to Windows when minimized or idle (about 4–10 MB in Task Manager)
@@ -86,6 +91,8 @@ Notes:
 | `--screenshot <file.png>` | Renders the window to a PNG and exits |
 | `--tab servers` / `--tab detail` / `--tab settings` | Opens on that tab |
 | `--clients` | Opens the live client previews |
+| `--check-update` | Checks for updates even in `--screenshot` mode |
+| `--update-now` | Installs an available update right away (used for testing) |
 | `--home` | Starts in home-screen launch mode |
 | `--show-add` / `--show-bulk` / `--show-import` | Opens that dialog |
 
@@ -95,7 +102,9 @@ Run the unit tests with `cargo test --release` (they never touch your real Roblo
 
 ## Privacy
 
-Besides `roblox.com`/`rbxcdn.com`, the app only talks to Discord: Rich Presence goes to the Discord app running on your own PC (it shows the number of accounts and running clients, never names or cookies), and webhook alerts go to your own webhook if you turn them on.
+Besides `roblox.com`/`rbxcdn.com`, the app only talks to Discord: Rich Presence goes to the Discord app running on your own PC (it shows the number of accounts and running clients, never names or cookies), webhook alerts go to your own webhook if you turn them on, and the update check asks `api.github.com` for this repo's latest release (turn it off in Settings).
+
+**Releasing a new version:** the release notes must contain a line like `SHA256  <hash of RBXAccountManager.exe>` and the exe must be attached as `RBXAccountManager.exe`; the in-app updater checks that hash before installing.
 
 ## Disclaimer
 

@@ -15,6 +15,7 @@ mod store;
 #[cfg(test)]
 mod tests;
 mod tray;
+mod updater;
 mod win;
 
 use eframe::egui::{
@@ -196,6 +197,9 @@ enum Msg {
     Servers(String, Result<Vec<ServerInfo>, String>),
     GameInfo { place: String, name: Option<String>, icon: Option<(usize, usize, Vec<u8>)> },
     BulkProgress(usize, usize),
+    UpdateFound(Result<Option<updater::Release>, String>, bool),
+    UpdateProgress(f32),
+    UpdateDone(Result<(), String>),
     BulkDone(Vec<(String, Result<Option<UserInfo>, String>)>),
 }
 
@@ -321,6 +325,14 @@ struct App {
     /// Where each live preview should be drawn this frame (hwnd, rect in points, minimized)
     thumb_targets: Vec<(isize, Rect, bool)>,
     logo_tex: egui::TextureHandle,
+    /// Newer release found on GitHub (shown in the update bar)
+    update: Option<updater::Release>,
+    update_progress: Option<f32>,
+    update_error: Option<String>,
+    update_dismissed: bool,
+    update_checking: bool,
+    /// test flag: install an available update right away
+    update_auto: bool,
     demo: bool,
     screenshot: Option<String>,
     frame_no: u64,
@@ -839,6 +851,12 @@ impl App {
             next_windows: 0.0,
             thumbs: HashMap::new(),
             thumb_targets: vec![],
+            update: None,
+            update_progress: None,
+            update_error: None,
+            update_dismissed: false,
+            update_checking: false,
+            update_auto: has("--update-now"),
             logo_tex: {
                 let (w, h, rgba) = png_rgba(LOGO_128);
                 cc.egui_ctx.load_texture("logo", egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba), egui::TextureOptions::LINEAR)
@@ -877,6 +895,12 @@ impl App {
         }
         if has("--clients") {
             app.view = View::Clients;
+        }
+        if has("--after-update") {
+            app.toast(format!("Updated to v{}.", env!("CARGO_PKG_VERSION")), ToastKind::Ok, 6.0);
+        }
+        if !app.demo && (app.screenshot.is_none() || has("--check-update")) && (app.settings.check_updates || app.update_auto) {
+            app.check_for_update(&cc.egui_ctx, false);
         }
         if has("--home") {
             app.settings.launch_home = true;
@@ -1296,6 +1320,7 @@ impl App {
                         }
                     }
                 }
+                m @ (Msg::UpdateFound(..) | Msg::UpdateProgress(_) | Msg::UpdateDone(_)) => self.handle_update_msg(ctx, m),
                 Msg::BulkProgress(i, n) => {
                     if let Modal::Bulk { progress, .. } = &mut self.modal {
                         *progress = Some((i, n));
@@ -1751,6 +1776,132 @@ impl App {
             });
     }
 
+    // -------------------------------------------------------------- updates
+    fn check_for_update(&mut self, ctx: &egui::Context, manual: bool) {
+        if self.update_checking || self.update_progress.is_some() {
+            return;
+        }
+        self.update_checking = true;
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(Msg::UpdateFound(updater::check(), manual));
+            ctx.request_repaint();
+        });
+    }
+
+    fn start_update(&mut self, ctx: &egui::Context) {
+        let Some(rel) = self.update.clone() else { return };
+        if self.update_progress.is_some() {
+            return;
+        }
+        self.update_progress = Some(0.0);
+        self.update_error = None;
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let tx2 = tx.clone();
+            let ctx2 = ctx.clone();
+            let progress = move |p: f32| {
+                let _ = tx2.send(Msg::UpdateProgress(p));
+                ctx2.request_repaint();
+            };
+            let r = updater::download(&rel, &progress).and_then(|bytes| updater::install_and_restart(&bytes));
+            let _ = tx.send(Msg::UpdateDone(r));
+            ctx.request_repaint();
+        });
+    }
+
+    fn handle_update_msg(&mut self, ctx: &egui::Context, msg: Msg) {
+        match msg {
+            Msg::UpdateFound(r, manual) => {
+                self.update_checking = false;
+                match r {
+                    Ok(Some(rel)) => {
+                        let skipped = !manual && rel.tag.eq_ignore_ascii_case(self.settings.skip_version.trim());
+                        if !skipped {
+                            self.update = Some(rel);
+                            self.update_dismissed = false;
+                            if self.update_auto {
+                                self.start_update(ctx);
+                            }
+                        }
+                    }
+                    Ok(None) if manual => self.toast(format!("You're on the latest version (v{}).", env!("CARGO_PKG_VERSION")), ToastKind::Ok, 4.0),
+                    Err(e) if manual => self.toast(format!("Couldn't check for updates: {e}"), ToastKind::Err, 6.0),
+                    _ => {}
+                }
+            }
+            Msg::UpdateProgress(p) => self.update_progress = Some(p),
+            Msg::UpdateDone(r) => match r {
+                Ok(()) => {
+                    // the new version is starting; close this one for real (not to the tray)
+                    tray::QUIT.store(true, Ordering::Relaxed);
+                    self.save_settings();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                Err(e) => {
+                    self.update_progress = None;
+                    self.update_error = Some(e);
+                }
+            },
+            _ => {}
+        }
+    }
+
+    /// Thin bar under the header: Update now / Skip this version / Later.
+    fn update_bar(&mut self, ctx: &egui::Context) {
+        let Some(rel) = self.update.clone() else { return };
+        if self.update_dismissed {
+            return;
+        }
+        egui::TopBottomPanel::top("update_bar")
+            .exact_height(46.0)
+            .show_separator_line(false)
+            .frame(Frame::new().fill(SELECT_BG()).inner_margin(Margin::symmetric(24, 0)).stroke(line(1.0, BORDER())))
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    let (dot, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                    ui.painter().circle_filled(dot.center(), 4.0, PRIMARY());
+                    let text = match (&self.update_progress, &self.update_error) {
+                        (Some(p), _) => format!("Downloading {} … {:.0}%", rel.tag, p * 100.0),
+                        (None, Some(e)) => format!("Update failed: {e}"),
+                        _ => format!("Update available: {}  (you have v{})", rel.tag, env!("CARGO_PKG_VERSION")),
+                    };
+                    let col = if self.update_error.is_some() { RED() } else { TEXT() };
+                    ui.label(RichText::new(text).font(sb(13.0)).color(col));
+                    if self.update_progress.is_none() && !rel.page.is_empty() {
+                        if ui
+                            .add(egui::Label::new(RichText::new("What's new").font(rg(12.5)).color(MUTED()).underline()).sense(Sense::click()))
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .clicked()
+                        {
+                            win::open_url(&rel.page);
+                        }
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if let Some(p) = self.update_progress {
+                            let (r, _) = ui.allocate_exact_size(vec2(160.0, 6.0), Sense::hover());
+                            ui.painter().rect_filled(r, CornerRadius::same(3), BORDER_HI());
+                            ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(r.width() * p, 6.0)), CornerRadius::same(3), PRIMARY());
+                            return;
+                        }
+                        let label = if self.update_error.is_some() { "Try again" } else { "Update now" };
+                        if primary(ui, label, vec2(110.0, 30.0), true).clicked() {
+                            self.start_update(ctx);
+                        }
+                        if ghost(ui, "Skip this version", vec2(130.0, 30.0)).on_hover_text("Don't offer this version again").clicked() {
+                            self.settings.skip_version = rel.tag.clone();
+                            self.save_settings();
+                            self.update_dismissed = true;
+                            self.toast(format!("{} skipped. You'll be told about the next version.", rel.tag), ToastKind::Info, 5.0);
+                        }
+                        if ghost(ui, "Later", vec2(70.0, 30.0)).on_hover_text("Hide until the app is opened again").clicked() {
+                            self.update_dismissed = true;
+                        }
+                    });
+                });
+            });
+    }
+
     // -------------------------------------------------------------- monitor / tray / previews
     /// Push the current settings to the background monitor.
     fn sync_monitor(&mut self) {
@@ -1942,6 +2093,46 @@ impl App {
             ui.label(RichText::new(sub).font(rg(12.0)).color(MUTED()));
             ui.add_space(4.0);
         };
+
+        // ---- Updates
+        let mut check_now = false;
+        panel_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            section(ui, "Updates", &format!("You have v{}. Updates come from this app's GitHub releases.", env!("CARGO_PKG_VERSION")));
+            let on = self.settings.check_updates;
+            let mut flip = false;
+            setting_row(ui, "Check on startup", "Shows a bar when a new version is out", 50.0, |ui| {
+                flip = toggle(ui, on).clicked();
+            });
+            if flip {
+                self.settings.check_updates = !on;
+                changed = true;
+            }
+            ui.horizontal(|ui| {
+                let label = if self.update_checking { "Checking..." } else { "Check now" };
+                if ghost(ui, label, vec2(110.0, 30.0)).clicked() && !self.update_checking {
+                    check_now = true;
+                }
+                let skipped = self.settings.skip_version.trim().to_string();
+                if !skipped.is_empty() {
+                    ui.label(RichText::new(format!("Skipped: {skipped}")).font(rg(12.5)).color(MUTED()));
+                    if ui
+                        .add(egui::Label::new(RichText::new("Undo").font(rg(12.5)).color(TEXT()).underline()).sense(Sense::click()))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        self.settings.skip_version.clear();
+                        changed = true;
+                        check_now = true;
+                    }
+                }
+            });
+        });
+        if check_now {
+            let ctx = ui.ctx().clone();
+            self.check_for_update(&ctx, true);
+        }
+        ui.add_space(10.0);
 
         // ---- Appearance
         panel_frame().show(ui, |ui| {
@@ -3292,6 +3483,7 @@ impl eframe::App for App {
         self.request_game_info(ctx);
         self.shortcuts(ctx);
         self.header(ctx);
+        self.update_bar(ctx);
         self.status_bar(ctx);
         self.side_panel(ctx);
         self.central(ctx);
@@ -3323,10 +3515,21 @@ fn app_icon() -> egui::IconData {
 // ------------------------------------------------------------------ main
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let Some(_instance) = win::NamedMutex::acquire("LocalRbxManager_App_SingleInstance") else {
+    // right after an update the old version may still be closing: wait for it (max ~15 s)
+    let after_update = args.iter().any(|a| a == "--after-update");
+    let mut instance = win::NamedMutex::acquire("LocalRbxManager_App_SingleInstance");
+    let mut tries = 0;
+    while instance.is_none() && after_update && tries < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        instance = win::NamedMutex::acquire("LocalRbxManager_App_SingleInstance");
+        tries += 1;
+    }
+    let Some(_instance) = instance else {
         win::message_box("RBX Account Manager is already running.", false);
         return;
     };
+    // delete the previous exe left behind by an update
+    std::thread::spawn(updater::cleanup_old);
     let accounts = match store::load_accounts() {
         Ok(a) => a,
         Err(e) => {

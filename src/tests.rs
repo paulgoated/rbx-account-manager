@@ -112,3 +112,45 @@ fn rpc_real_application_id() {
     println!("RPC result with the real ID: {r:?}");
     assert!(r.is_ok());
 }
+
+#[test]
+fn update_versions_compare() {
+    use crate::updater::{is_newer, parse_version};
+    assert_eq!(parse_version("v2.10.1"), Some((2, 10, 1)));
+    assert_eq!(parse_version("2.3"), Some((2, 3, 0)));
+    assert_eq!(parse_version("nope"), None);
+    assert!(is_newer("v999.0.0"));
+    assert!(!is_newer(concat!("v", env!("CARGO_PKG_VERSION"))), "same version is not an update");
+    assert!(!is_newer("v0.9.0"));
+}
+
+#[test]
+fn update_sha_is_read_from_release_notes_and_checked() {
+    let body = "### Verify\n```\nSHA256  2B4C99F09E8F4C1E1B6E7A9D0F2B3C4D5E6F708192A3B4C5D6E7F8091A2B3C4D\n```";
+    assert_eq!(
+        crate::updater::sha_from_notes(body).as_deref(),
+        Some("2b4c99f09e8f4c1e1b6e7a9d0f2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d")
+    );
+    assert_eq!(crate::updater::sha_from_notes("no hash here"), None);
+    // SHA-256("abc")
+    assert_eq!(crate::updater::sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+}
+
+#[test]
+fn update_swaps_the_exe_file() {
+    let dir = std::env::temp_dir().join(format!("rbxmgr_swap_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let exe = dir.join("App.exe");
+    std::fs::write(&exe, b"MZ old").unwrap();
+    crate::updater::swap_in(&exe, b"MZ new").unwrap();
+    assert_eq!(std::fs::read(&exe).unwrap(), b"MZ new");
+    assert_eq!(std::fs::read(dir.join("App.exe.old")).unwrap(), b"MZ old", "old version kept until next start");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn update_settings_defaults() {
+    let s: crate::store::Settings = serde_json::from_str("{}").unwrap();
+    assert!(s.check_updates, "update checks are on by default");
+    assert!(s.skip_version.is_empty());
+}

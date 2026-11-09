@@ -85,6 +85,11 @@ pub struct Settings {
     pub discord_app_id: String,
     /// UI theme: "graphite" (dark, default), "terrava" (light) or "neon".
     pub theme: String,
+    /// Check GitHub Releases for a newer version on startup.
+    #[serde(default = "yes")]
+    pub check_updates: bool,
+    /// A release tag the user chose to skip (e.g. "v2.3.0"); newer releases still show.
+    pub skip_version: String,
 }
 
 pub fn data_dir() -> PathBuf {
@@ -193,7 +198,7 @@ pub fn load_settings() -> Settings {
         .ok()
         .and_then(|t| serde_json::from_str(strip_bom(&t)).ok())
         // first run: same defaults as a settings file without these fields
-        .unwrap_or_else(|| Settings { discord_rpc: true, ..Default::default() })
+        .unwrap_or_else(|| Settings { discord_rpc: true, check_updates: true, ..Default::default() })
 }
 
 pub fn save_settings(s: &Settings) {
