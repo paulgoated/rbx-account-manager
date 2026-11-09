@@ -274,6 +274,9 @@ struct EditBuf {
     alias: String,
     group: String,
     note: String,
+    password: String,
+    /// The password is hidden again whenever the buffer is rebuilt (other account, after Save).
+    show_password: bool,
 }
 
 struct App {
@@ -1415,12 +1418,17 @@ impl App {
     fn import_from(&mut self, ctx: &egui::Context, path: &str) -> Result<(), String> {
         let list = store::import_ram(path)?;
         let (mut added, mut updated) = (0, 0);
+        let with_password = list.iter().filter(|a| !a.password.is_empty()).count();
         for a in list {
             if let Some(e) = self.accounts.iter_mut().find(|x| x.user_id == a.user_id) {
                 e.cookie = a.cookie;
                 e.status = a.status;
                 if e.username.is_empty() {
                     e.username = a.username;
+                }
+                // never replace a saved password with an empty one
+                if !a.password.is_empty() {
+                    e.password = a.password;
                 }
                 updated += 1;
             } else {
@@ -1430,8 +1438,14 @@ impl App {
                 added += 1;
             }
         }
+        // rebuild the Account tab's edit buffer so it shows the imported password
+        self.edit = None;
         self.save();
-        self.toast(format!("Import done: {added} added, {updated} updated. Checking status..."), ToastKind::Ok, 8.0);
+        self.toast(
+            format!("Import done: {added} added, {updated} updated, {with_password} with a password. Checking status..."),
+            ToastKind::Ok,
+            8.0,
+        );
         self.request_avatars(ctx);
         self.check_all(ctx);
         Ok(())
@@ -2657,7 +2671,14 @@ impl App {
         let id = self.selected[0].clone();
         let Some(acc) = self.account(&id).cloned() else { return };
         if self.edit.as_ref().map(|e| e.id != id).unwrap_or(true) {
-            self.edit = Some(EditBuf { id: id.clone(), alias: acc.alias.clone(), group: acc.group.clone(), note: acc.note.clone() });
+            self.edit = Some(EditBuf {
+                id: id.clone(),
+                alias: acc.alias.clone(),
+                group: acc.group.clone(),
+                note: acc.note.clone(),
+                password: acc.password.clone(),
+                show_password: false,
+            });
         }
         if !self.details.contains_key(&id) {
             self.load_details(&ctx, &id);
@@ -2751,7 +2772,29 @@ impl App {
             ui.add_space(4.0);
             caption(ui, "NOTES");
             ui.add(egui::TextEdit::multiline(&mut buf.note).desired_rows(3).desired_width(f32::INFINITY).margin(vec2(10.0, 8.0)).hint_text(RichText::new("Private notes").color(FAINT())));
-            let dirty = buf.alias != acc.alias || buf.group != acc.group || buf.note != acc.note;
+            ui.add_space(4.0);
+            caption(ui, "PASSWORD");
+            ui.horizontal(|ui| {
+                let (bw, gap, margin) = (64.0, ui.spacing().item_spacing.x, vec2(10.0, 8.0));
+                ui.add(
+                    egui::TextEdit::singleline(&mut buf.password)
+                        .hint_text(RichText::new("Not saved").color(FAINT()))
+                        .password(!buf.show_password)
+                        // desired_width is the text area; egui adds the left + right margin outside it
+                        .desired_width((ui.available_width() - 2.0 * (bw + gap) - 2.0 * margin.x).max(40.0))
+                        .margin(margin)
+                        .font(rg(14.0)),
+                );
+                let has = !buf.password.trim().is_empty();
+                let label = if buf.show_password { "Hide" } else { "Show" };
+                if button(ui, label, vec2(bw, 34.0), CARD(), CARD_HOVER(), TEXT(), rg(13.5), has).clicked() {
+                    buf.show_password = !buf.show_password;
+                }
+                if button(ui, "Copy", vec2(bw, 34.0), CARD(), CARD_HOVER(), TEXT(), rg(13.5), has).clicked() {
+                    act = Some(6);
+                }
+            });
+            let dirty = buf.alias != acc.alias || buf.group != acc.group || buf.note != acc.note || buf.password != acc.password;
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if primary(ui, "Save", vec2(100.0, 32.0), dirty).clicked() {
@@ -2804,9 +2847,16 @@ impl App {
                         a.alias = buf.alias.trim().chars().take(40).collect();
                         a.group = buf.group.trim().chars().take(30).collect();
                         a.note = buf.note.chars().take(1000).collect();
+                        a.password = buf.password.trim().chars().take(256).collect();
                     }
                     self.save();
                     self.toast("Changes saved.", ToastKind::Ok, 3.0);
+                }
+            }
+            Some(6) => {
+                if let Some(p) = self.edit.as_ref().map(|b| b.password.trim().to_string()).filter(|p| !p.is_empty()) {
+                    ctx.copy_text(p);
+                    self.toast("Password copied.", ToastKind::Ok, 3.0);
                 }
             }
             Some(1) => self.apply(&ctx, CardAction::ToggleFav(id)),
@@ -3332,7 +3382,7 @@ impl App {
                     }
                     ui.add_space(4.0);
                     ui.label(
-                        RichText::new("Cookies are re-encrypted with DPAPI and stored on this PC. The original file is not modified. Every account is checked after import.")
+                        RichText::new("Cookies and saved passwords are re-encrypted with DPAPI and stored on this PC. The original file is not modified. Every account is checked after import.")
                             .font(rg(12.5))
                             .color(MUTED()),
                     );

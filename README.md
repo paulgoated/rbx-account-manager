@@ -16,8 +16,9 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/rafael
 
 **Accounts**
 - Add an account by pasting its `.ROBLOSECURITY` cookie, or paste many cookies at once (one per line, `username:cookie` works too)
-- Import from Roblox Account Manager's `AccountData.json` (the original file is never modified)
+- Import from Roblox Account Manager's `AccountData.json`, including the passwords it saved (the original file is never modified)
 - Aliases, groups, notes, favorites and a **MAIN** flag (MAIN accounts are skipped by "select all")
+- Optional saved password per account: hidden until you click **Show**, with a **Copy** button
 - Filter by favorites, MAIN, expired or group, plus search
 - Live presence (online / in game / in Studio) and real avatar headshots
 - Account details: Robux, Premium, friends, followers, following, join date
@@ -51,9 +52,10 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/rafael
 
 ## Security model
 
-- Cookies are encrypted with [DPAPI](https://learn.microsoft.com/windows/win32/api/dpapi/) (current user scope). Only the Windows user that saved them, on the same PC, can decrypt `accounts.dat`.
+- Cookies and saved passwords are encrypted with [DPAPI](https://learn.microsoft.com/windows/win32/api/dpapi/) (current user scope). Only the Windows user that saved them, on the same PC, can decrypt `accounts.dat`.
 - Data lives in `%LOCALAPPDATA%\LocalRbxManager\`.
 - Cookies are never shown again after being saved, and are only sent to `roblox.com`.
+- Saved passwords are hidden until you click **Show** and are never sent anywhere: the app signs in with the cookie, not the password. A password you change on roblox.com isn't updated here automatically.
 - **Never share your `.ROBLOSECURITY` cookie.** Anyone who has it can sign in to your account.
 
 ## Getting a cookie

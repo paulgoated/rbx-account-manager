@@ -42,6 +42,10 @@ pub struct Account {
     pub favorite: bool,
     /// Main account: skipped by "select all".
     pub main: bool,
+    /// Optional, typed by the user or imported from Roblox Account Manager.
+    /// Encrypted together with the cookie in accounts.dat; empty = not saved.
+    #[serde(deserialize_with = "de_str")]
+    pub password: String,
 }
 
 impl Account {
@@ -173,11 +177,14 @@ pub fn import_ram(path: &str) -> Result<Vec<Account>, String> {
             continue;
         }
         let valid = !matches!(it["Valid"], serde_json::Value::Bool(false));
+        // RAM only saves a password for accounts added by signing in with a username and password.
+        let password = s("Password");
         out.push(Account {
             alias: if alias.is_empty() { username.clone() } else { alias },
             user_id,
             username,
             cookie,
+            password,
             status: if valid { "OK" } else { "EXPIRED" }.into(),
             ..Default::default()
         });
