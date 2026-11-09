@@ -67,6 +67,40 @@ fn rich_presence_defaults() {
 }
 
 #[test]
+fn ram_import_reads_saved_passwords() {
+    let file = std::env::temp_dir().join(format!("rbxmgr_ram_test_{}.json", std::process::id()));
+    std::fs::write(
+        &file,
+        r#"[
+            {"Valid": true, "SecurityToken": "_|WARNING:-fake-A", "Username": "alpha", "UserID": 1, "Alias": "", "Password": " p@ss:word "},
+            {"Valid": false, "SecurityToken": "_|WARNING:-fake-B", "Username": "beta", "UserID": 2, "Password": "   "},
+            {"Valid": true, "SecurityToken": "_|WARNING:-fake-C", "Username": "gamma", "UserID": 3, "Password": null},
+            {"Valid": true, "SecurityToken": "_|WARNING:-fake-D", "Username": "delta", "UserID": 4}
+        ]"#,
+    )
+    .unwrap();
+    let list = crate::store::import_ram(file.to_str().unwrap());
+    let _ = std::fs::remove_file(&file);
+    let list = list.unwrap();
+    assert_eq!(list.len(), 4);
+    assert_eq!(list[0].password, "p@ss:word", "spaces around the password are trimmed");
+    assert_eq!(list[0].status, "OK");
+    assert_eq!(list[1].status, "EXPIRED");
+    assert!(list[1].password.is_empty(), "a password of only spaces counts as not saved");
+    // RAM leaves the password empty or out for accounts it got from a cookie
+    assert!(list[2].password.is_empty() && list[3].password.is_empty());
+}
+
+#[test]
+fn accounts_saved_before_passwords_still_load() {
+    let old: Vec<crate::store::Account> = serde_json::from_str(r#"[{"UserId": "1", "Username": "alpha", "Cookie": "x"}]"#).unwrap();
+    assert!(old[0].password.is_empty());
+    let a = crate::store::Account { password: "secret".into(), ..Default::default() };
+    let back: crate::store::Account = serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
+    assert_eq!(back.password, "secret");
+}
+
+#[test]
 fn webhook_urls_are_validated() {
     assert!(discord::valid_webhook("https://discord.com/api/webhooks/123/abc"));
     assert!(discord::valid_webhook("https://discordapp.com/api/webhooks/123/abc"));
