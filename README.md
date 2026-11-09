@@ -10,7 +10,7 @@ Your accounts are encrypted with Windows DPAPI and stored only on your PC. The a
 
 ## Download
 
-Grab `RBXAccountManager.exe` from the [latest release](https://github.com/rafaelvons/rbx-account-manager/releases/latest). It's a single file, no installer. Windows SmartScreen may warn the first time because the exe isn't code-signed: click **More info → Run anyway**.
+Grab `RBXAccountManager.exe` from the [latest release](https://github.com/paulgoated/rbx-account-manager/releases/latest). It's a single file, no installer. Windows SmartScreen may warn the first time because the exe isn't code-signed: click **More info → Run anyway**.
 
 ## Features
 

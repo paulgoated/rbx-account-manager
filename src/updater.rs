@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-const REPO: &str = "rafaelvons/rbx-account-manager";
+const REPO: &str = "paulgoated/rbx-account-manager";
 const ASSET: &str = "RBXAccountManager.exe";
 
 #[derive(Clone, Debug)]
