@@ -1,6 +1,6 @@
 [package]
 name = "rbx-account-manager"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 description = "Local Roblox account manager. Accounts are encrypted with Windows DPAPI and never leave your PC."
 
