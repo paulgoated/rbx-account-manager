@@ -25,7 +25,7 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/paulgo
 - Check every account's cookie at once
 
 **Launching**
-- Join a game from a game link, Place ID, private server link, `roblox.com/share` link, `roblox://` link, profile link or `@username` (follows that player)
+- Join a game from a game link, Place ID, private server link (`privateServerLinkCode=` or `roblox.com/share?code=...&type=Server`), other `roblox.com/share` links, `roblox://` link, profile link or `@username` (follows that player)
 - Or open Roblox on the **home screen**, signed in, without joining a game
 - Pinned games with names and icons, plus recent games
 - Multi Roblox: run several clients side by side
@@ -39,7 +39,7 @@ Grab `RBXAccountManager.exe` from the [latest release](https://github.com/paulgo
 - **Auto-rejoin (beta)**: watches each client's Roblox log for disconnects, kicks and shutdowns and rejoins automatically. Stops after 3 rejoins in 10 minutes
 - **FPS limit**: sets Roblox's own Maximum Frame Rate (`FramerateCap` in `GlobalBasicSettings_*.xml`) and the `DFIntTaskSchedulerTargetFps` fast flag before every launch and rejoin. Other settings are kept
 - **Close to tray**: the X button hides the app; Anti-AFK and auto-rejoin keep running. The tray menu has Show, Anti-AFK, Stop all Roblox and Quit
-- **Discord**: Rich Presence works out of the box (on by default, turn it off in Settings) and shows the app plus how many clients are running on your profile. Optional webhook alerts for disconnects, rejoins and finished batches. Advanced: use your own Discord Application ID to show a different name
+- **Discord**: Rich Presence works out of the box (on by default, turn it off in Settings). It shows the game your clients are playing, with its icon, and how many clients are running. With no client in a game it shows the app instead. Optional webhook alerts for disconnects, rejoins and finished batches. Advanced: use your own Discord Application ID to show a different name
 
 **Updates**
 - Checks this repo's GitHub releases on startup (can be turned off). A bar offers **Update now**, **Skip this version** or **Later**
@@ -104,7 +104,7 @@ Run the unit tests with `cargo test --release` (they never touch your real Roblo
 
 ## Privacy
 
-Besides `roblox.com`/`rbxcdn.com`, the app only talks to Discord: Rich Presence goes to the Discord app running on your own PC (it shows the number of accounts and running clients, never names or cookies), webhook alerts go to your own webhook if you turn them on, and the update check asks `api.github.com` for this repo's latest release (turn it off in Settings).
+Besides `roblox.com`/`rbxcdn.com`, the app only talks to Discord: Rich Presence goes to the Discord app running on your own PC (it shows the game being played, the number of accounts and running clients, never usernames or cookies), webhook alerts go to your own webhook if you turn them on, and the update check asks `api.github.com` for this repo's latest release (turn it off in Settings).
 
 **Releasing a new version:** the release notes must contain a line like `SHA256  <hash of RBXAccountManager.exe>` and the exe must be attached as `RBXAccountManager.exe`; the in-app updater checks that hash before installing.
 

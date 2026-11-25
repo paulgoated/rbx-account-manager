@@ -116,6 +116,12 @@ fn game_inputs_parse() {
     assert_eq!(g.place_id, "1730877806");
     let g = roblox::parse_game("@builderman", "").unwrap();
     assert_eq!(g.follow_username.as_deref(), Some("builderman"));
+    let g = roblox::parse_game("https://www.roblox.com/share?code=4f7d1a2b3c4d5e6f7a8b9c0d1e2f3a4b&type=Server", "").unwrap();
+    assert_eq!(g.share_code.as_deref(), Some("4f7d1a2b3c4d5e6f7a8b9c0d1e2f3a4b"));
+    let g = roblox::parse_game("roblox://navigation/share_links?type=Server&code=ABC123", "").unwrap();
+    assert_eq!(g.share_code.as_deref(), Some("ABC123"));
+    let g = roblox::parse_game("https://www.roblox.com/games/1730877806/Grand-Piece-Online?privateServerLinkCode=0123456789", "").unwrap();
+    assert_eq!((g.place_id.as_str(), g.link_code.as_deref()), ("1730877806", Some("0123456789")));
     assert!(roblox::home_uri("TICKET").starts_with("roblox-player:1+launchmode:app+gameinfo:TICKET"));
 }
 
@@ -131,7 +137,7 @@ fn listing_roblox_windows_does_not_crash() {
 #[ignore] // needs the Discord desktop app running: cargo test -- --ignored rpc_
 fn rpc_connects_to_local_discord() {
     let mut rpc = crate::discord::Rpc::new();
-    let r = rpc.set("100000000000000001", "test", "test");
+    let r = rpc.set("100000000000000001", "test", "test", None);
     println!("RPC result with a fake ID: {r:?}");
     // a fake ID must be rejected by Discord (proves the IPC pipe works), never "Discord isn't running"
     assert_ne!(r, Err("Discord isn't running.".to_string()));
@@ -142,9 +148,17 @@ fn rpc_connects_to_local_discord() {
 fn rpc_real_application_id() {
     let Ok(id) = std::env::var("RBX_RPC_TEST_ID") else { return };
     let mut rpc = crate::discord::Rpc::new();
-    let r = rpc.set(&id, "Managing accounts", "Connection test");
+    let r = rpc.set(&id, "Managing accounts", "Connection test", None);
     println!("RPC result with the real ID: {r:?}");
     assert!(r.is_ok());
+    // a game shown with its icon URL must be accepted too
+    let icon = crate::roblox::game_card(&crate::roblox::universe_of("1730877806").unwrap()).1.unwrap();
+    let r = rpc.set(&id, "Grand Piece Online", "1 Roblox client running", Some(&icon));
+    println!("RPC result with a game: {r:?}");
+    assert!(r.is_ok());
+    if std::env::var("RBX_RPC_HOLD").is_ok() {
+        std::thread::sleep(std::time::Duration::from_secs(25));
+    }
 }
 
 #[test]

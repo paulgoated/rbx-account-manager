@@ -337,21 +337,53 @@ pub fn start(shared: SharedRef, events: Sender<Event>, tray_rx: Receiver<TrayCmd
     });
 }
 
+/// Universe IDs of the games the tracked clients are in. Uses each account's own presence
+/// (Roblox shows the game to the account itself) and falls back to the place it was launched into.
+fn games_now(clients: &[(String, String, Option<String>)], place_uni: &mut HashMap<String, String>) -> Vec<String> {
+    let mut out = Vec::new();
+    for (user_id, cookie, place) in clients {
+        let p = roblox::get_presence(std::slice::from_ref(user_id), cookie).ok().and_then(|m| m.get(user_id).cloned());
+        let uni = match p {
+            Some(p) if p.kind == 2 && !p.universe_id.is_empty() => Some(p.universe_id),
+            // online but not in a game = on the home screen
+            Some(p) if p.kind == 1 => None,
+            // still joining, or presence unknown: use the place it was launched into
+            _ => place.as_ref().and_then(|pl| {
+                if !place_uni.contains_key(pl) {
+                    let u = roblox::universe_of(pl)?;
+                    place_uni.insert(pl.clone(), u);
+                }
+                place_uni.get(pl).cloned()
+            }),
+        };
+        out.extend(uni);
+    }
+    out
+}
+
 /// Discord Rich Presence updater (own thread: the IPC pipe can block).
+/// Shows the game the clients are playing (name + icon), or the app when none is in a game.
 pub fn start_rpc(shared: SharedRef) {
     std::thread::spawn(move || {
         let mut rpc = discord::Rpc::new();
+        let mut place_uni: HashMap<String, String> = HashMap::new();
+        let mut cards: HashMap<String, (String, Option<String>)> = HashMap::new();
         std::thread::sleep(Duration::from_secs(2));
-        // update right away when the settings change, otherwise every 15 s
+        // update right away when the settings or the client list change, otherwise every 15 s
         let mut last_key = String::new();
         let mut next = Instant::now();
         loop {
-            let (cfg, tracked) = {
+            let (cfg, clients) = {
                 let sh = shared.lock().unwrap();
-                (sh.cfg.clone(), sh.clients.len())
+                let c: Vec<(String, String, Option<String>)> = sh
+                    .clients
+                    .iter()
+                    .map(|c| (c.user_id.clone(), c.cookie.clone(), c.target.as_ref().map(|t| t.place_id.clone()).filter(|p| !p.is_empty())))
+                    .collect();
+                (sh.cfg.clone(), c)
             };
             let id = cfg.rpc_app_id.trim().to_string();
-            let key = format!("{}|{}|{}", cfg.rpc, id, cfg.accounts);
+            let key = format!("{}|{}|{}|{}", cfg.rpc, id, cfg.accounts, clients.len());
             if key != last_key || Instant::now() >= next {
                 last_key = key;
                 next = Instant::now() + Duration::from_secs(15);
@@ -365,10 +397,36 @@ pub fn start_rpc(shared: SharedRef) {
                     rpc.clear();
                     "That isn't an Application ID (it's a 17–20 digit number).".to_string()
                 } else {
-                    let running = win::roblox_pids().len().max(tracked);
-                    let details = format!("Managing {} account{}", cfg.accounts, if cfg.accounts == 1 { "" } else { "s" });
-                    let state = if running == 0 { "No clients running".to_string() } else { format!("{running} Roblox client{} running", if running == 1 { "" } else { "s" }) };
-                    match rpc.set(&id, &details, &state) {
+                    let running = win::roblox_pids().len().max(clients.len());
+                    // most played game first
+                    let mut games: Vec<(String, usize)> = Vec::new();
+                    for uni in games_now(&clients, &mut place_uni) {
+                        match games.iter_mut().find(|(u, _)| *u == uni) {
+                            Some(g) => g.1 += 1,
+                            None => games.push((uni, 1)),
+                        }
+                    }
+                    games.sort_by(|a, b| b.1.cmp(&a.1));
+                    let top = games.first().and_then(|(uni, _)| {
+                        if !cards.contains_key(uni) {
+                            if let (Some(name), icon) = roblox::game_card(uni) {
+                                cards.insert(uni.clone(), (name, icon));
+                            }
+                        }
+                        cards.get(uni).cloned()
+                    });
+                    let clients_text = if running == 0 { "No clients running".to_string() } else { format!("{running} Roblox client{} running", if running == 1 { "" } else { "s" }) };
+                    let r = match &top {
+                        Some((name, icon)) => {
+                            let details = if games.len() > 1 { format!("{name} + {} more", games.len() - 1) } else { name.clone() };
+                            rpc.set(&id, &details, &clients_text, icon.as_deref())
+                        }
+                        None => {
+                            let details = format!("Managing {} account{}", cfg.accounts, if cfg.accounts == 1 { "" } else { "s" });
+                            rpc.set(&id, &details, &clients_text, None)
+                        }
+                    };
+                    match r {
                         Ok(()) => "OK: Connected. Showing on your Discord profile.".to_string(),
                         Err(e) => e,
                     }

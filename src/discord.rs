@@ -88,7 +88,8 @@ impl Rpc {
     }
 
     /// Show / update the activity. Empty `app_id` clears it.
-    pub fn set(&mut self, app_id: &str, details: &str, state: &str) -> Result<(), String> {
+    /// `game_icon`: icon URL of the game being played; it then replaces the logo as the big image.
+    pub fn set(&mut self, app_id: &str, details: &str, state: &str, game_icon: Option<&str>) -> Result<(), String> {
         let app_id = app_id.trim();
         if app_id.is_empty() {
             self.clear();
@@ -98,18 +99,22 @@ impl Rpc {
             self.pipe = None;
             self.connect(app_id)?;
         }
+        let mut activity = serde_json::json!({
+            "details": details,
+            "state": state,
+            "timestamps": { "start": self.started },
+            // shown when an Art Asset named "logo" exists in your Discord application
+            "assets": { "large_image": "logo", "large_text": "RBX Account Manager" }
+        });
+        if let Some(icon) = game_icon {
+            // Discord shows https image URLs directly; the app logo moves to the small badge
+            activity["assets"] = serde_json::json!({ "large_image": icon, "large_text": details, "small_image": "logo", "small_text": "RBX Account Manager" });
+            // member list says "Playing <game>" instead of "Playing RBX Account Manager"
+            activity["status_display_type"] = 2.into();
+        }
         let msg = serde_json::json!({
             "cmd": "SET_ACTIVITY",
-            "args": {
-                "pid": std::process::id(),
-                "activity": {
-                    "details": details,
-                    "state": state,
-                    "timestamps": { "start": self.started },
-                    // shown when an Art Asset named "logo" exists in your Discord application
-                    "assets": { "large_image": "logo", "large_text": "RBX Account Manager" }
-                }
-            },
+            "args": { "pid": std::process::id(), "activity": activity },
             "nonce": format!("{}", SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0))
         })
         .to_string();

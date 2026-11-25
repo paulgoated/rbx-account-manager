@@ -957,8 +957,8 @@ impl App {
             mk("1004", "sky_builder", "Builder", "OK", "07 Nov 22:40", "Trade", false, false),
             mk("1005", "night_trader", "Trading", "OK", "", "Trade", false, false),
         ];
-        self.presence.insert("1001".into(), Presence { kind: 2, location: "Blox Fruits".into() });
-        self.presence.insert("1004".into(), Presence { kind: 1, location: "Website".into() });
+        self.presence.insert("1001".into(), Presence { kind: 2, location: "Blox Fruits".into(), ..Default::default() });
+        self.presence.insert("1004".into(), Presence { kind: 1, location: "Website".into(), ..Default::default() });
         self.details.insert(
             "1001".into(),
             Details { robux: Some(12450), premium: Some(true), friends: Some(87), followers: Some(1204), following: Some(56), created: "14 Mar 2019".into(), banned: false },
@@ -2464,7 +2464,7 @@ impl App {
                     self.save_settings();
                 }
             }
-            field(ui, &mut self.game, "Link game, Place ID, link share, @username", false);
+            field(ui, &mut self.game, "Game link, private server link, Place ID or @username", false);
             let recents: Vec<String> = self
                 .settings
                 .recent_games

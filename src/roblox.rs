@@ -38,6 +38,8 @@ pub struct Details {
 pub struct Presence {
     pub kind: i64,
     pub location: String,
+    /// Filled while in a game (only visible to the account itself and its friends).
+    pub universe_id: String,
 }
 
 #[derive(Clone)]
@@ -203,6 +205,7 @@ pub fn get_presence(ids: &[String], cookie: &str) -> Result<HashMap<String, Pres
                 Presence {
                     kind: p["userPresenceType"].as_i64().unwrap_or(0),
                     location: p["lastLocation"].as_str().unwrap_or("").to_string(),
+                    universe_id: id_str(&p["universeId"]).unwrap_or_default(),
                 },
             );
         }
@@ -222,6 +225,11 @@ fn resolve_share(code: &str, cookie: &str) -> Result<(String, Option<String>), S
     for kind in ["Server", "ExperienceInvite", "ExperienceDetails"] {
         let body = serde_json::json!({ "linkId": code, "linkType": kind }).to_string();
         if let Ok(v) = post_json(&a, "https://apis.roblox.com/sharelinks/v1/resolve-link", Some(cookie), &body) {
+            if let Some(status) = v["privateServerInviteData"]["status"].as_str() {
+                if !status.eq_ignore_ascii_case("valid") {
+                    return Err(format!("This private server link is {} (status: {status}).", if status.eq_ignore_ascii_case("expired") { "expired" } else { "not valid" }));
+                }
+            }
             if let Some(place) = find_key(&v, "placeId").and_then(|x| id_str(&x)) {
                 let link = find_key(&v, "linkCode").and_then(|x| id_str(&x));
                 return Ok((place, link));
@@ -346,13 +354,14 @@ pub fn home_uri(ticket: &str) -> String {
     )
 }
 
-/// Accepts: Place ID, game link, private server link, share link, roblox:// link,
+/// Accepts: Place ID, game link, private server link (privateServerLinkCode=... or a
+/// share?code=...&type=Server link), other share links, roblox:// links,
 /// profile link (users/123/profile) or @username (= follow that player into their game).
 pub fn parse_game(text: &str, job: &str) -> Result<GameTarget, String> {
     let t = text.trim();
     let cap = |re: &str| Regex::new(re).unwrap().captures(t).map(|c| c[1].to_string());
     let mut g = GameTarget::default();
-    if let Some(code) = cap(r"(?i)roblox\.com/share\?code=([A-Za-z0-9]+)") {
+    if let Some(code) = cap(r"(?i)(?:roblox\.com/share|share[_-]links)\?(?:[^ ]*&)?code=([A-Za-z0-9]+)") {
         g.share_code = Some(code);
         return Ok(g);
     }
@@ -383,7 +392,7 @@ pub fn parse_game(text: &str, job: &str) -> Result<GameTarget, String> {
             g.place_id = p;
             Ok(g)
         }
-        None => Err("Enter a game link, Place ID, share link or @username first.".into()),
+        None => Err("Enter a game link, private server link, Place ID or @username first.".into()),
     }
 }
 
@@ -404,27 +413,46 @@ fn download_cdn(a: &ureq::Agent, url: &str) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-/// Game name + icon (PNG) for a Place ID. Public API, no cookie sent.
-pub fn game_info(place: &str) -> (Option<String>, Option<Vec<u8>>) {
-    let Ok(a) = agent() else { return (None, None) };
-    let Some(uni) = get_json(&a, &format!("https://apis.roblox.com/universes/v1/places/{place}/universe"), None)
+/// Universe (experience) ID of a place. Public API, no cookie sent.
+pub fn universe_of(place: &str) -> Option<String> {
+    let a = agent().ok()?;
+    universe_with(&a, place)
+}
+
+fn universe_with(a: &ureq::Agent, place: &str) -> Option<String> {
+    get_json(a, &format!("https://apis.roblox.com/universes/v1/places/{place}/universe"), None).ok().and_then(|v| id_str(&v["universeId"]))
+}
+
+fn game_name(a: &ureq::Agent, uni: &str) -> Option<String> {
+    get_json(a, &format!("https://games.roblox.com/v1/games?universeIds={uni}"), None)
         .ok()
-        .and_then(|v| id_str(&v["universeId"]))
-    else {
-        return (None, None);
-    };
-    let name = get_json(&a, &format!("https://games.roblox.com/v1/games?universeIds={uni}"), None)
-        .ok()
-        .and_then(|v| v["data"].get(0).and_then(|d| d["name"].as_str().map(|s| s.to_string())));
-    let icon = get_json(
-        &a,
-        &format!("https://thumbnails.roblox.com/v1/games/icons?universeIds={uni}&returnPolicy=PlaceHolder&size=50x50&format=Png&isCircular=false"),
+        .and_then(|v| v["data"].get(0).and_then(|d| d["name"].as_str().map(|s| s.to_string())))
+}
+
+/// Icon URL on the Roblox CDN, `size` like "50x50" or "512x512".
+fn game_icon_url(a: &ureq::Agent, uni: &str, size: &str) -> Option<String> {
+    get_json(
+        a,
+        &format!("https://thumbnails.roblox.com/v1/games/icons?universeIds={uni}&returnPolicy=PlaceHolder&size={size}&format=Png&isCircular=false"),
         None,
     )
     .ok()
     .and_then(|v| v["data"].get(0).and_then(|d| d["imageUrl"].as_str().map(|s| s.to_string())))
-    .and_then(|u| download_cdn(&a, &u));
+}
+
+/// Game name + icon (PNG) for a Place ID. Public API, no cookie sent.
+pub fn game_info(place: &str) -> (Option<String>, Option<Vec<u8>>) {
+    let Ok(a) = agent() else { return (None, None) };
+    let Some(uni) = universe_with(&a, place) else { return (None, None) };
+    let name = game_name(&a, &uni);
+    let icon = game_icon_url(&a, &uni, "50x50").and_then(|u| download_cdn(&a, &u));
     (name, icon)
+}
+
+/// Game name + large icon URL for a universe (for Discord Rich Presence). Public API, no cookie sent.
+pub fn game_card(uni: &str) -> (Option<String>, Option<String>) {
+    let Ok(a) = agent() else { return (None, None) };
+    (game_name(&a, uni), game_icon_url(&a, uni, "512x512"))
 }
 
 // ------------------------------------------------------------------ avatar
